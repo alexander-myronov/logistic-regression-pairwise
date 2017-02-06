@@ -74,13 +74,15 @@ class LogisticRegression(BaseEstimator):
         #                                           maxiter=10000,
         #                                           disp=1)
 
-        res = scipy.optimize.fmin_cg(f,
+        res = scipy.optimize.fmin_ncg(f,
                                      self.beta,
                                      # approx_grad=True,
                                      fprime=fprime,
                                      # maxfun=10000,
                                      maxiter=10000,
-                                     disp=2)
+                                     disp=0,
+                                     retall=False)
+        last_loss = f(res)
         self.beta = res
 
         return self
@@ -139,7 +141,8 @@ class LogisticRegression(BaseEstimator):
 
 
 class LogisticRegressionPairwise(BaseEstimator):
-    def __init__(self, alpha, mu, percent_pairs, kernel='linear', gamma='auto', verbose=False):
+    def __init__(self, alpha=1, mu=1, percent_pairs=0.5, kernel='linear', gamma='auto',
+                 verbose=False):
         self.beta = None
         self.alpha = alpha
         self.mu = mu
@@ -534,34 +537,34 @@ def compare_moons():
 
 if __name__ == '__main__':
 
-    # X, y = make_classification(n_samples=80,
-    #                            n_features=20,
-    #                            n_informative=15,
-    #                            n_classes=3,
-    #                            random_state=42)
-    # clf = make_pipeline(StandardScaler(),
-    #                     LinksClassifier(alpha=2,
-    #                                     gamma=0.005,
-    #                                     kernel='rbf',
-    #                                     kernel_gamma=0.01,
-    #                                     verbose=True,
-    #                                     percent_pairs=0.5,
-    #                                     sampling='max_kdist'))
-    #
-    # compare = make_pipeline(StandardScaler(),
-    #                         SVC(C=1, kernel='rbf', gamma=0.1))
-    #
-    # kf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-    #
-    # print(cross_val_score(clf,
-    #                       X=X, y=y,
-    #                       scoring=make_scorer(accuracy_score),
-    #                       cv=kf))
-    # print(cross_val_score(compare,
-    #                       X=X, y=y,
-    #                       scoring=make_scorer(accuracy_score),
-    #                       cv=kf))
-    # exit()
+    X, y = make_classification(n_samples=80,
+                               n_features=20,
+                               n_informative=15,
+                               n_classes=3,
+                               random_state=42)
+    clf = make_pipeline(StandardScaler(),
+                        LinksClassifier(alpha=2,
+                                        gamma=0.005,
+                                        kernel='rbf',
+                                        kernel_gamma=0.01,
+                                        verbose=True,
+                                        percent_pairs=0.5,
+                                        sampling='max_kdist'))
+
+    compare = make_pipeline(StandardScaler(),
+                            SVC(C=1, kernel='rbf', gamma=0.1))
+
+    kf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+
+    print(cross_val_score(clf,
+                          X=X, y=y,
+                          scoring=make_scorer(accuracy_score),
+                          cv=kf))
+    print(cross_val_score(compare,
+                          X=X, y=y,
+                          scoring=make_scorer(accuracy_score),
+                          cv=kf))
+    exit()
 
     compare_moons()
     plt.show()
