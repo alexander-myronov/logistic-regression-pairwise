@@ -104,8 +104,8 @@ class LogisticRegression(BaseEstimator):
 
     def predict_proba_(self, X, beta):
         # return LogisticRegression.sigmoid(np.dot(X, beta))
-        # return LogisticRegression.sigmoid(np.dot(self.kernel_f(X), beta))
-        return np.dot(self.kernel_f(X), beta)
+        return LogisticRegression.sigmoid(np.dot(self.kernel_f(X), beta))
+        #return np.dot(self.kernel_f(X), beta)
 
     def loss(self, X, y, beta, alpha=0):
         K = self.kernel_f(X)

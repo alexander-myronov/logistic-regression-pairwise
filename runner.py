@@ -10,8 +10,6 @@ import os
 import pstats
 import traceback
 import datetime
-from ipyparallel import CompositeError
-import ipyparallel
 
 import numpy as np
 import itertools
@@ -366,6 +364,14 @@ if __name__ == '__main__':
         return globals()[name]
 
 
+    datafiles_toy = datafiles_toy[::-1]
+    print(datafiles_toy)
+
+    for ds_file in datafiles_toy:
+        X, y= load_svmlight_file(ds_file)
+        print(ds_file, np.unique(y))
+
+
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
                              partial(loader, os.path.split(f)[-1].replace('.libsvm', '')))
                             for f in datafiles_toy])
@@ -423,8 +429,6 @@ if __name__ == '__main__':
     parallel_models = False
     if parallel_models:
 
-        import pathos.multiprocessing as mp
-
         pool = mp.Pool(processes=4)
 
         async_results = []
@@ -468,7 +472,7 @@ if __name__ == '__main__':
 
         pool = mp.Pool()
         mapper = pool.imap_unordered
-        # mapper = itertools.imap
+        #mapper = itertools.imap
         for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
                                                                     xrange(0, len(estimators))):
             value = \
