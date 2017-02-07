@@ -27,7 +27,7 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, roc_auc_score
 
-import multiprocess as mp
+import pathos.multiprocessing as mp
 
 # In[ ]:
 
@@ -325,7 +325,7 @@ def prepare_and_train(name, X, y, estimator_index, n_inner_folds=3, n_inner_test
         # ps.print_stats()
     except Exception:
         e_type, e_value, e_tb = sys.exc_info()
-        # print(e_tb)
+        traceback.print_tb(e_tb)
 
         return name, estimator_index, (e_value, e_tb)
     print('%s ready' % name)
