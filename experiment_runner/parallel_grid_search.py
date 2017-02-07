@@ -5,12 +5,14 @@ parallelized using ipyparallel
 from collections import Sized, defaultdict
 from functools import partial
 import itertools
+import traceback
 
 from sklearn.base import is_classifier, clone
 from sklearn.cross_validation import check_cv
 from sklearn.metrics.scorer import check_scoring
 from sklearn.utils.validation import _num_samples, indexable
 import numpy as np
+import sys
 
 from grid import split_constraints_and_transforms, make_grid, apply_transforms
 from process_grid import map_param
@@ -175,6 +177,8 @@ class GridSearchCVParallel(GridSearchCV):
                     self.callback(1, length, description='%.3f+-%.3f' % (np.mean(best_scores), np.std(best_scores)))
         except Exception as e:
             print(e)
+            e_type, e_value, e_tb = sys.exc_info()
+            traceback.print_tb(e_tb)
 
         # assert len(self.cacher) == length and (np.array(self.cacher.keys()) == np.arange(length)).all()
 
@@ -216,6 +220,9 @@ class GridSearchCVParallel(GridSearchCV):
                 np.array(all_scores)))
         # Store the computed scores
         self.grid_scores_ = grid_scores
+
+
+        print(len(grid_scores))
 
         # Find the best parameters by comparing on the mean validation score:
         # note that `sorted` is deterministic in the way it breaks ties

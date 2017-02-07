@@ -19,22 +19,20 @@ class LinksClassifier(BaseEstimator):
         self.X = None
         self.gamma = gamma
         self.n_classes = None
-        self.kernel_dict = {
-            'linear': self.linear_kernel,
-            'rbf': self.rbf_kernel,
-        }
+
         self.kernel = kernel
-        self.kernel_f = self.kernel_dict[kernel]
+
         self.kernel_gamma = kernel_gamma
         self.percent_pairs = percent_pairs
         self.verbose = verbose
 
-        self.samling_dict = {
-            'random': self.sample_pairs_random,
-            'max_kdist': self.sample_pairs_max_kdist
-        }
         self.sampling = sampling
-        self.sampling_f = self.samling_dict[sampling]
+
+    def kernel_f(self, X, X_prim):
+        if self.kernel == 'linear':
+            return self.linear_kernel(X, X_prim)
+        elif self.kernel == 'rbf':
+            return self.rbf_kernel(X, X_prim)
 
     def linear_kernel(self, X, X_prim=None):
         return X
@@ -111,6 +109,12 @@ class LinksClassifier(BaseEstimator):
         # self.v = res[0]
         self.v = self.v.reshape(self.n_classes - 1, -1)
         return self
+
+    def sampling_f(self, X, y):
+        if self.sampling == 'random':
+            return self.sample_pairs_random(X, y)
+        elif self.sampling == 'max_kdist':
+            return self.sample_pairs_max_kdist(X, y)
 
     def sample_pairs_random(self, X, y):
         # np.random.seed(44)

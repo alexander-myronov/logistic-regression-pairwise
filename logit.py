@@ -29,12 +29,14 @@ class LogisticRegression(BaseEstimator):
         self.alpha = alpha
         self.X = None
         self.gamma = gamma
-        self.kernel_dict = {
-            'linear': self.linear_kernel,
-            'rbf': self.rbf_kernel,
-        }
         self.kernel = kernel
-        self.kernel_f = self.kernel_dict[kernel]
+        #self.kernel_f = self.kernel_dict[kernel]
+
+    def kernel_f(self, X):
+        if self.kernel == 'linear':
+            return self.linear_kernel(X)
+        elif self.kernel == 'rbf':
+            return self.rbf_kernel(X)
 
     def rbf_kernel(self, X):
         if self.gamma == 'auto':
@@ -139,7 +141,6 @@ class LogisticRegression(BaseEstimator):
         self.alpha = params.pop('alpha', 1)
         self.gamma = params.pop('gamma', 'auto')
         self.kernel = params.pop('kernel', 'linear')
-        self.kernel_f = self.kernel_dict[self.kernel]
         return self
 
 
@@ -151,13 +152,15 @@ class LogisticRegressionPairwise(BaseEstimator):
         self.mu = mu
         self.percent_pairs = percent_pairs
         self.gamma = gamma
-        self.kernel_dict = {
-            'linear': self.linear_kernel,
-            'rbf': self.rbf_kernel,
-        }
         self.kernel = kernel
-        self.kernel_f = self.kernel_dict[kernel]
+
         self.verbose = verbose
+
+    def kernel_f(self, X, X_prim):
+        if self.kernel == 'linear':
+            return self.linear_kernel(X, X_prim)
+        elif self.kernel == 'rbf':
+            return self.rbf_kernel(X, X_prim)
 
     def linear_kernel(self, X, X_prim):
         return X
@@ -458,7 +461,6 @@ class LogisticRegressionPairwise(BaseEstimator):
         self.percent_pairs = params.pop('percent_pairs', 0.5)
         self.gamma = params.pop('gamma', 'auto')
         self.kernel = params.pop('kernel', 'linear')
-        self.kernel_f = self.kernel_dict[self.kernel]
         return self
 
 

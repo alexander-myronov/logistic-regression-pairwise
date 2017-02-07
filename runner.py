@@ -27,7 +27,7 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, roc_auc_score
 
-import pathos.multiprocessing as mp
+import multiprocess as mp
 
 # In[ ]:
 
@@ -151,7 +151,7 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
             fit_arguments['y_true'] = y[test]
             meta_cacher[index] = fit_arguments
 
-        # callback = TqdmCallback()
+        callback = TqdmCallback()
         search = GridSearchCVParallel(estimator, param_grid, scoring=scorer,
                                       cv=list(StratifiedShuffleSplit(n_splits=n_inner_folds,
                                                                      test_size=n_inner_test_size,
@@ -161,7 +161,7 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
                                       refit=False,
                                       iid=False,
                                       mapper=mapper,
-                                      # callback=callback,
+                                      callback=callback,
                                       cacher=cacher,
                                       fit_callback=record_metadata,
                                       loader=loader)
@@ -252,7 +252,7 @@ estimators_toy = [
     # SVC(),
 ]
 
-estimator_grids_toy = [
+estimator_grids = [
     {
         'kernel': ['rbf', ],
         'alpha': [0.1, 1, 10, 100, 1000, 10000],
@@ -271,6 +271,34 @@ estimator_grids_toy = [
         'kernel_gamma': ['auto', 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1],
         'gamma': [0.01, 0.1, 1, 10, 100],
         'percent_pairs': [0.01, 0.02, 0.05, 0.1, 0.2, 0.3],
+    },
+    # {
+    #     'kernel': ['rbf'],
+    #     'C': [0.1, 1, 10, 100, 1000, 10000],
+    #     'gamma': ['auto', 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
+    # },
+
+]
+
+estimator_grids_toy = [
+    {
+        'kernel': ['rbf', ],
+        'alpha': [0.1, 1, 10],
+        # 'gamma': ['auto', 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 10]
+    },
+    {
+        'kernel': ['rbf', ],
+        'alpha': [0.1, 1, 10],
+        # 'gamma': ['auto', 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1],
+        'mu': [0.01, 1, 10],
+        'percent_pairs': [0.05, 0.1, 0.3],
+    },
+    {
+        'kernel': ['rbf', ],
+        'alpha': [0.1, 1, 10],
+        # 'kernel_gamma': ['auto', 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1],
+        'gamma': [0.01, 1, 10],
+        'percent_pairs': [0.05, 0.1, 0.3],
     },
     # {
     #     'kernel': ['rbf'],
@@ -365,7 +393,7 @@ if __name__ == '__main__':
         return globals()[name]
 
 
-    #datafiles_toy = datafiles_toy[::-1]
+    # datafiles_toy = datafiles_toy[::-1]
     print(datafiles_toy)
 
     for ds_file in datafiles_toy:
@@ -426,14 +454,14 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    parallel_models = True
+    parallel_models = False
     if parallel_models:
 
         pool = mp.Pool()
 
         async_results = []
         for (name, (dataset)), estimator_index in itertools.product(datasets.items(),
-                                                                    xrange(0, len(estimators))):
+                                                                    xrange(1, len(estimators))):
             value = \
                 str(scores_grid.loc[name, get_estimator_descritpion(estimators[estimator_index])])
 
@@ -471,11 +499,11 @@ if __name__ == '__main__':
         pool.close()
     else:
 
-        pool = mp.Pool(processes=1)
-        mapper = pool.imap_unordered
+        pool = mp.Pool()
+        mapper = pool.imap
         # mapper = itertools.imap
         for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
-                                                                    xrange(0, len(estimators))):
+                                                                    xrange(1, len(estimators))):
             value = \
                 str(scores_grid.loc[name, get_estimator_descritpion(estimators[estimator_index])])
 
@@ -500,7 +528,7 @@ if __name__ == '__main__':
                                                mapper=mapper,
                                                loader=dataset if callable(dataset) else None
                                                ))
-        pool.close()
+                # pool.close()
 
     end_time = time.time()
 
