@@ -132,7 +132,7 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
     # mapper = itertools.imap
 
     for n_fold, (train_index, test_index) in enumerate(folds):
-        print('%d/%d fold' % (n_fold + 1, n_outer_folds))
+        print('%s: %d/%d fold' % (base_folder, n_fold + 1, n_outer_folds))
 
         cache_dir = base_folder + '/' + 'fold=%d' % n_fold
         cacher = MultipleFilesCacher(cache_dir, flush_every_n=1)
@@ -151,7 +151,7 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
             fit_arguments['y_true'] = y[test]
             meta_cacher[index] = fit_arguments
 
-        callback = TqdmCallback()
+        # callback = TqdmCallback()
         search = GridSearchCVParallel(estimator, param_grid, scoring=scorer,
                                       cv=list(StratifiedShuffleSplit(n_splits=n_inner_folds,
                                                                      test_size=n_inner_test_size,
@@ -161,7 +161,7 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
                                       refit=False,
                                       iid=False,
                                       mapper=mapper,
-                                      callback=callback,
+                                      # callback=callback,
                                       cacher=cacher,
                                       fit_callback=record_metadata,
                                       loader=loader)
@@ -316,7 +316,7 @@ def prepare_and_train(name, X, y, estimator_index, n_inner_folds=3, n_inner_test
                                         n_outer_test_size=n_outer_test_size,
                                         n_inner_folds=n_inner_folds,
                                         n_inner_test_size=n_inner_test_size,
-                                        base_dir='data/%s' % name,
+                                        base_dir='trzmiel_data/%s' % name,
                                         mapper=mapper,
                                         loader=loader)
         # pr.disable()
@@ -365,7 +365,7 @@ if __name__ == '__main__':
         return globals()[name]
 
 
-    datafiles_toy = datafiles_toy[::-1]
+    #datafiles_toy = datafiles_toy[::-1]
     print(datafiles_toy)
 
     for ds_file in datafiles_toy:
@@ -426,10 +426,10 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    parallel_models = False
+    parallel_models = True
     if parallel_models:
 
-        pool = mp.Pool(processes=4)
+        pool = mp.Pool()
 
         async_results = []
         for (name, (dataset)), estimator_index in itertools.product(datasets.items(),
