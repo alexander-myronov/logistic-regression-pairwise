@@ -3,6 +3,7 @@
 import argparse
 import cProfile
 from collections import OrderedDict
+from functools import partial
 from io import StringIO
 import json
 import os
@@ -109,7 +110,8 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
                         n_inner_folds,
                         n_inner_test_size,
                         base_folder,
-                        mapper=itertools.imap):
+                        mapper=itertools.imap,
+                        loader=None):
     """
     returns
     test score for each outer fold
@@ -162,9 +164,10 @@ def perform_grid_search(estimator, X, y, scorer, param_grid, n_outer_folds,
                                       mapper=mapper,
                                       callback=callback,
                                       cacher=cacher,
-                                      fit_callback=record_metadata)
+                                      fit_callback=record_metadata,
+                                      loader=loader)
 
-        search.fit(X[train_index], y[train_index])
+        search.fit(train_index, y[train_index], x_is_index=True)
 
 
 
@@ -197,7 +200,7 @@ def get_estimator_descritpion(estimator):
 # In[ ]:
 
 def test_models(estimators, estimator_grids, X, Y, scorer, n_outer_folds, n_inner_folds,
-                n_outer_test_size, n_inner_test_size, base_dir, mapper=itertools.imap):
+                n_outer_test_size, n_inner_test_size, base_dir, mapper=itertools.imap, loader=None):
     estimator_scores = []
     # estimator_scores_std = np.zeros(len(estimators))
     assert len(estimators) <= len(estimator_grids)
@@ -214,7 +217,8 @@ def test_models(estimators, estimator_grids, X, Y, scorer, n_outer_folds, n_inne
                                                 n_inner_test_size=n_inner_test_size,
                                                 n_outer_test_size=n_outer_test_size,
                                                 base_folder='%s/%s' % (base_dir, name),
-                                                mapper=mapper)
+                                                mapper=mapper,
+                                                loader=loader)
         print(scores_test)
         estimator_scores.append(scores_test)
 
@@ -297,7 +301,7 @@ def accuracy_scorer(estimator, X, y):
 
 
 def prepare_and_train(name, X, y, estimator_index, n_inner_folds=3, n_inner_test_size=0.2,
-                      n_outer_folds=3, n_outer_test_size=0.2, mapper=itertools.imap):
+                      n_outer_folds=3, n_outer_test_size=0.2, mapper=itertools.imap, loader=None):
     print(name, get_estimator_descritpion(estimators[estimator_index]))
 
     try:
@@ -314,7 +318,8 @@ def prepare_and_train(name, X, y, estimator_index, n_inner_folds=3, n_inner_test
                                         n_inner_folds=n_inner_folds,
                                         n_inner_test_size=n_inner_test_size,
                                         base_dir='data/%s' % name,
-                                        mapper=mapper)
+                                        mapper=mapper,
+                                        loader=loader)
         # pr.disable()
 
         # ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
@@ -348,7 +353,21 @@ if __name__ == '__main__':
 
     cache = True
 
-    datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''), load_svmlight_file(f))
+
+    def loader(name):
+        from sklearn.datasets import load_svmlight_file
+        from scipy.sparse import issparse
+        filename = 'data/%s.libsvm' % name
+        if not name in globals():
+            X, y = load_svmlight_file(filename)
+            if issparse(X):
+                X = X.toarray()
+            globals()[name] = (X, y)
+        return globals()[name]
+
+
+    datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
+                             partial(loader, os.path.split(f)[-1].replace('.libsvm', '')))
                             for f in datafiles_toy])
 
 
@@ -449,6 +468,7 @@ if __name__ == '__main__':
 
         pool = mp.Pool()
         mapper = pool.imap_unordered
+        # mapper = itertools.imap
         for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
                                                                     xrange(0, len(estimators))):
             value = \
@@ -472,7 +492,8 @@ if __name__ == '__main__':
                                                n_inner_test_size=args.gs_test_size,
                                                n_outer_folds=args.cv_folds,
                                                n_outer_test_size=args.cv_test_size,
-                                               mapper=mapper
+                                               mapper=mapper,
+                                               loader=dataset if callable(dataset) else None
                                                ))
         pool.close()
 
