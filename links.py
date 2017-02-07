@@ -88,15 +88,15 @@ class LinksClassifier(BaseEstimator):
             tr_loss, l_loss, n_loss = f(v, split=True)
             print('loss: traditional=%.3f, links=%.3f, penalty=%.3f' % (tr_loss, l_loss, n_loss))
 
-        res = scipy.optimize.fmin_l_bfgs_b(f,
+        res = scipy.optimize.fmin_ncg(f,
                                            self.v,
-                                           approx_grad=True,
+                                           #approx_grad=True,
                                            fprime=fprime,
                                            maxiter=10000,
                                            disp=0,
                                            callback=cb if self.verbose else None)
 
-        self.v = res[0]
+        self.v = res
         # res = scipy.optimize.fmin_ncg(f,
         #                               self.v,
         #                               # approx_grad=True,

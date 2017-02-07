@@ -501,9 +501,9 @@ if __name__ == '__main__':
 
         pool = mp.Pool()
         mapper = pool.imap
-        # mapper = itertools.imap
+        #mapper = itertools.imap
         for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
-                                                                    xrange(1, len(estimators))):
+                                                                    xrange(2, len(estimators))):
             value = \
                 str(scores_grid.loc[name, get_estimator_descritpion(estimators[estimator_index])])
 
