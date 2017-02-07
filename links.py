@@ -28,7 +28,7 @@ class LinksClassifier(BaseEstimator):
 
         self.sampling = sampling
 
-    def kernel_f(self, X, X_prim):
+    def kernel_f(self, X, X_prim=None):
         if self.kernel == 'linear':
             return self.linear_kernel(X, X_prim)
         elif self.kernel == 'rbf':
