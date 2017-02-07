@@ -426,7 +426,7 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    parallel_models = True
+    parallel_models = False
     if parallel_models:
 
         pool = mp.Pool(processes=4)
