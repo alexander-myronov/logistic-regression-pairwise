@@ -10,6 +10,7 @@ import os
 import pstats
 import traceback
 import datetime
+from ipyparallel import CompositeError
 
 import numpy as np
 import itertools
@@ -26,7 +27,7 @@ from sklearn.svm import SVC
 
 from sklearn.metrics import confusion_matrix, make_scorer, accuracy_score, roc_auc_score
 
-import pathos.multiprocessing as mp
+import multiprocess as mp
 
 # In[ ]:
 
