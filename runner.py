@@ -369,9 +369,8 @@ if __name__ == '__main__':
     print(datafiles_toy)
 
     for ds_file in datafiles_toy:
-        X, y= load_svmlight_file(ds_file)
+        X, y = load_svmlight_file(ds_file)
         print(ds_file, np.unique(y))
-
 
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
                              partial(loader, os.path.split(f)[-1].replace('.libsvm', '')))
@@ -427,13 +426,13 @@ if __name__ == '__main__':
 
     start_time = time.time()
 
-    parallel_models = False
+    parallel_models = True
     if parallel_models:
 
         pool = mp.Pool(processes=4)
 
         async_results = []
-        for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
+        for (name, (dataset)), estimator_index in itertools.product(datasets.items(),
                                                                     xrange(0, len(estimators))):
             value = \
                 str(scores_grid.loc[name, get_estimator_descritpion(estimators[estimator_index])])
@@ -461,7 +460,8 @@ if __name__ == '__main__':
                                            'n_inner_folds': args.gs_folds,
                                            'n_inner_test_size': args.gs_test_size,
                                            'n_outer_folds': args.cv_folds,
-                                           'n_outer_test_size': args.cv_reps
+                                           'n_outer_test_size': args.cv_test_size,
+                                           'loader': dataset if callable(dataset) else None
                                        },
                                        callback=map_callback)
                 async_results.append(res)
@@ -471,9 +471,9 @@ if __name__ == '__main__':
         pool.close()
     else:
 
-        pool = mp.Pool()
+        pool = mp.Pool(processes=1)
         mapper = pool.imap_unordered
-        #mapper = itertools.imap
+        # mapper = itertools.imap
         for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
                                                                     xrange(0, len(estimators))):
             value = \

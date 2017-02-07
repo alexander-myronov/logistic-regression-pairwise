@@ -161,17 +161,20 @@ class GridSearchCVParallel(GridSearchCV):
             score, test_size, time, params = result
             results_by_params[frozenset(map(map_param, params.iteritems()))].append(score)
 
-        for index, result in self.mapper(f, iterable):
-            self.cacher[index] = result
-            score, test_size, time, params = result
-            results_by_params[frozenset(map(map_param, params.iteritems()))].append(score)
-            if self.callback:
-                best_scores = next(iter(sorted(itertools.ifilter(lambda scores:
-                                                                 len(scores) == len(cv), results_by_params.values()),
-                                               key=lambda scores: np.mean(scores),
-                                               reverse=True)), [0])
+        try:
+            for index, result in self.mapper(f, iterable):
+                self.cacher[index] = result
+                score, test_size, time, params = result
+                results_by_params[frozenset(map(map_param, params.iteritems()))].append(score)
+                if self.callback:
+                    best_scores = next(iter(sorted(itertools.ifilter(lambda scores:
+                                                                     len(scores) == len(cv), results_by_params.values()),
+                                                   key=lambda scores: np.mean(scores),
+                                                   reverse=True)), [0])
 
-                self.callback(1, length, description='%.3f+-%.3f' % (np.mean(best_scores), np.std(best_scores)))
+                    self.callback(1, length, description='%.3f+-%.3f' % (np.mean(best_scores), np.std(best_scores)))
+        except Exception as e:
+            print(e)
 
         # assert len(self.cacher) == length and (np.array(self.cacher.keys()) == np.arange(length)).all()
 

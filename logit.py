@@ -74,15 +74,18 @@ class LogisticRegression(BaseEstimator):
         #                                           maxiter=10000,
         #                                           disp=1)
 
-        res = scipy.optimize.fmin_ncg(f,
-                                     self.beta,
-                                     # approx_grad=True,
-                                     fprime=fprime,
-                                     # maxfun=10000,
-                                     maxiter=10000,
-                                     disp=0,
-                                     retall=False)
-        last_loss = f(res)
+        try:
+            res = scipy.optimize.fmin_ncg(f,
+                                          self.beta,
+                                          # approx_grad=True,
+                                          fprime=fprime,
+                                          # maxfun=10000,
+                                          maxiter=10000,
+                                          disp=0,
+                                          retall=False)
+        except:
+            res = self.beta
+        # last_loss = f(res)
         self.beta = res
 
         return self
@@ -105,7 +108,7 @@ class LogisticRegression(BaseEstimator):
     def predict_proba_(self, X, beta):
         # return LogisticRegression.sigmoid(np.dot(X, beta))
         return LogisticRegression.sigmoid(np.dot(self.kernel_f(X), beta))
-        #return np.dot(self.kernel_f(X), beta)
+        # return np.dot(self.kernel_f(X), beta)
 
     def loss(self, X, y, beta, alpha=0):
         K = self.kernel_f(X)
