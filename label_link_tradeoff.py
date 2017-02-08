@@ -145,7 +145,6 @@ if __name__ == '__main__':
     parser.add_argument('--plot', type=bool, default=False,
                         help='folder to store results')
 
-
     args = parser.parse_args()
     for ds_name, loader in datasets.iteritems():
         X, y = loader()
@@ -183,7 +182,8 @@ if __name__ == '__main__':
                 fig = plot_tradeoff(train_scores, test_scores)
                 fig.set_size_inches(15, 10)
                 fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
-                tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
+
+            tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
 
             for (i_label, p_labels), (i_link, p_links) in \
                     itertools.product(enumerate(percent_labels_range),
@@ -224,7 +224,6 @@ if __name__ == '__main__':
 
                     np.save(train_scores_filename, train_scores)
                     np.save(test_scores_filename, test_scores)
-
 
             if args.plot:
                 fig = plot_tradeoff(train_scores, test_scores)
