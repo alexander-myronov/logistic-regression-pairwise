@@ -136,14 +136,12 @@ if __name__ == '__main__':
     parser.add_argument('--cv_test_size', type=float, default=0.2,
                         help='cross validation test size')
 
-    parser.add_argument('--jobs', type=int, default=0,
+    parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs, -1 for all')
 
     parser.add_argument('--dir', type=str, default='data/',
                         help='folder to store results')
 
-    parser.add_argument('--jobs', type=int, default=1,
-                        help='number of parallel jobs, -1 for all')
 
     args = parser.parse_args()
     for ds_name, loader in datasets.iteritems():
