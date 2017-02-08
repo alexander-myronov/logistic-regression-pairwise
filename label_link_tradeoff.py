@@ -142,6 +142,9 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, default='data/',
                         help='folder to store results')
 
+    parser.add_argument('--plot', type=bool, default=False,
+                        help='folder to store results')
+
 
     args = parser.parse_args()
     for ds_name, loader in datasets.iteritems():
@@ -176,12 +179,11 @@ if __name__ == '__main__':
                     shape=(len(percent_labels_range), len(percent_links_range), len(outer_cv)),
                     fill_value=-1, dtype=float)
 
-            fig = plot_tradeoff(train_scores, test_scores)
-            fig.set_size_inches(15, 10)
-
-            fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
-
-            tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
+            if args.plot:
+                fig = plot_tradeoff(train_scores, test_scores)
+                fig.set_size_inches(15, 10)
+                fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
+                tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
 
             for (i_label, p_labels), (i_link, p_links) in \
                     itertools.product(enumerate(percent_labels_range),
@@ -224,7 +226,11 @@ if __name__ == '__main__':
                     np.save(test_scores_filename, test_scores)
 
 
-
+            if args.plot:
+                fig = plot_tradeoff(train_scores, test_scores)
+                fig.set_size_inches(15, 10)
+                fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
+                tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
 
 
 
