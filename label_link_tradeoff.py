@@ -142,6 +142,9 @@ if __name__ == '__main__':
     parser.add_argument('--dir', type=str, default='data/',
                         help='folder to store results')
 
+    parser.add_argument('--jobs', type=int, default=1,
+                        help='number of parallel jobs, -1 for all')
+
     args = parser.parse_args()
     for ds_name, loader in datasets.iteritems():
         X, y = loader()
@@ -192,10 +195,11 @@ if __name__ == '__main__':
                     if train_scores[i_label, i_link, i_split] != -1 and \
                                     test_scores[i_label, i_link, i_split] != -1:
                         continue
-                    X_train, y_train, X1_train, X2_train, z_train = split_dataset(X[train],
-                                                                                  y[train],
-                                                                                  percent_labels=p_labels,
-                                                                                  percent_links=p_links)
+                    X_train, y_train, X1_train, X2_train, z_train = \
+                        split_dataset(X[train],
+                                      y[train],
+                                      percent_labels=p_labels,
+                                      percent_links=p_links)
 
                     full_index = np.ones(len(X_train), dtype=bool)
 
@@ -208,7 +212,7 @@ if __name__ == '__main__':
                                           'z': z_train,
                                           'Xu': np.zeros(shape=(0, X.shape[1]))},
                                       refit=True,
-                                      n_jobs=-1)
+                                      n_jobs=args.jobs)
                     gs.fit(X_train, y_train)
                     tr_score = gs.best_score_
                     # print('tr score', tr_score)
