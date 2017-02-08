@@ -344,7 +344,7 @@ def prepare_and_train(name, X, y, estimator_index, n_inner_folds=3, n_inner_test
                                         n_outer_test_size=n_outer_test_size,
                                         n_inner_folds=n_inner_folds,
                                         n_inner_test_size=n_inner_test_size,
-                                        base_dir='trzmiel_data/%s' % name,
+                                        base_dir='toy_data/%s' % name,
                                         mapper=mapper,
                                         loader=loader)
         # pr.disable()
@@ -375,6 +375,8 @@ if __name__ == '__main__':
                         default=r'data/results%s.csv' % \
                                 str(datetime.datetime.now()).replace(':', '.'),
                         help='results file name')
+    parser.add_argument('--jobs', type=int, default=0,
+                        help='number of parallel jobs, -1 for all')
 
     args = parser.parse_args()
 
@@ -393,7 +395,7 @@ if __name__ == '__main__':
         return globals()[name]
 
 
-    # datafiles_toy = datafiles_toy[::-1]
+    datafiles_toy = datafiles_toy[::-1]
     print(datafiles_toy)
 
     for ds_file in datafiles_toy:
@@ -461,7 +463,7 @@ if __name__ == '__main__':
 
         async_results = []
         for (name, (dataset)), estimator_index in itertools.product(datasets.items(),
-                                                                    xrange(1, len(estimators))):
+                                                                    xrange(0, len(estimators))):
             value = \
                 str(scores_grid.loc[name, get_estimator_descritpion(estimators[estimator_index])])
 
@@ -499,11 +501,19 @@ if __name__ == '__main__':
         pool.close()
     else:
 
-        pool = mp.Pool()
-        mapper = pool.imap
-        #mapper = itertools.imap
+        if args.jobs == -1:
+            pool = mp.Pool()
+            mapper = pool.imap_unordered
+        elif args.jobs > 0:
+            pool = mp.Pool(args.jobs)
+            mapper = pool.imap_unordered
+        else:
+            pool = None
+            mapper = itertools.imap
+
+        # mapper = itertools.imap
         for (name, (dataset)), estimator_index in itertools.product(datasets.items()[::1],
-                                                                    xrange(2, len(estimators))):
+                                                                    xrange(0, len(estimators))):
             value = \
                 str(scores_grid.loc[name, get_estimator_descritpion(estimators[estimator_index])])
 
