@@ -66,9 +66,9 @@ def accuracy_scorer(estimator, X, y):
 
 def plot_scores(ax, scores, vmin, vmax, range_x, range_y):
     r = ax.imshow(scores.mean(axis=2), interpolation='nearest',
-                     cmap=plt.cm.hot,
-                     vmax=1,
-                     vmin=vmin, origin='lower')
+                  cmap=plt.cm.hot,
+                  vmax=1,
+                  vmin=vmin, origin='lower')
     ax.set_xticks(np.arange(len(range_x)))
     ax.set_xticklabels(range_x)
     ax.set_yticks(np.arange(len(range_y)))
@@ -178,12 +178,15 @@ if __name__ == '__main__':
             fig = plot_tradeoff(train_scores, test_scores)
             fig.set_size_inches(15, 10)
 
-            fig.savefig(os.path.join(est_dir, 'tradeoff.png'),  bbox_inches='tight', dpi=300)
+            fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
 
-            for (i_label, p_labels), (i_link, p_links) in tqdm(list(
+            tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
+
+            for (i_label, p_labels), (i_link, p_links) in \
                     itertools.product(enumerate(percent_labels_range),
-                                      enumerate(percent_links_range)))):
-                print('labels=%.2f, links=%.2f' % (p_labels, p_links))
+                                      enumerate(percent_links_range)):
+                tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
+                tq.update(1)
 
                 for i_split, (train, test) in enumerate(outer_cv):
                     if train_scores[i_label, i_link, i_split] != -1 and \
