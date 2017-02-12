@@ -1,3 +1,7 @@
+from label_link_tradeoff import plot_tradeoff
+
+__author__ = 'myronov'
+
 # coding: utf-8
 
 # In[1]:
@@ -22,17 +26,6 @@ from sklearn.model_selection import ParameterGrid, StratifiedShuffleSplit, GridS
 
 from tqdm import tqdm as tqdm
 
-estimators = [
-    ('LinksClassifier',
-     LinksClassifier(sampling='predefined'),
-     {
-         'alpha': [0.01, 0.1, 1, 10],
-         'kernel_gamma': ['auto'],
-         'kernel': ['rbf'],
-         'gamma': [0.1, 0.1, 1, 10]
-     }),
-]
-
 
 def sample_links_random(X, y, percent_links):
     # np.random.seed(44)
@@ -49,10 +42,120 @@ def sample_links_random(X, y, percent_links):
 
 def split_dataset(X, y, percent_labels, percent_links):
     X1, X2, z = sample_links_random(X, y, percent_links)
-    n_labels = int(len(y) * percent_labels)
-    labels_choice = \
-        next(StratifiedShuffleSplit(n_splits=1, train_size=percent_labels).split(X, y))[0]
-    return X[labels_choice], y[labels_choice], X1, X2, z
+
+    if percent_labels < 1:
+        labels_choice = \
+            next(StratifiedShuffleSplit(n_splits=1, train_size=percent_labels).split(X, y))[0]
+    else:
+        labels_choice = np.arange(0, len(X))
+    index = np.zeros(len(X), dtype=bool)
+    index[labels_choice] = True
+    return X[index], y[index], X1, X2, z, X[~index]
+
+
+links_grid = {
+    'alpha': [0.01, 0.1, 1, 10],
+    'kernel_gamma': ['auto'],
+    'kernel': ['rbf'],
+    'gamma': [0.1, 0.1, 1, 10]
+}
+
+
+def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
+    estimator = LinksClassifier()
+    grid = {
+        'alpha': [0.01, 0.1, 1, 10],
+        'kernel_gamma': ['auto'],
+        'kernel': ['rbf'],
+        # 'gamma': [0.1, 0.1, 1, 10]
+    }
+    full_index = np.ones(len(X), dtype=bool)
+
+    gs = GridSearchCV(estimator=estimator,
+                      param_grid=grid,
+                      cv=[(full_index, full_index)],
+                      scoring=accuracy_scorer,
+                      fit_params={
+                      },
+                      refit=True,
+                      n_jobs=n_jobs)
+    gs.fit(X, y)
+    return gs
+
+
+def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
+    estimator = LinksClassifier()
+    grid = {
+        'alpha': [0.01, 0.1, 1, 10],
+        'kernel_gamma': ['auto'],
+        'kernel': ['rbf'],
+        'gamma': [0.1, 0.1, 1, 10]
+    }
+    full_index = np.ones(len(X), dtype=bool)
+
+    gs = GridSearchCV(estimator=estimator,
+                      param_grid=grid,
+                      cv=[(full_index, full_index)],
+                      scoring=accuracy_scorer,
+                      fit_params={
+                          'X1': X1,
+                          'X2': X2,
+                          'z': z,
+                          'Xu': np.zeros(shape=(0, X.shape[1]))
+                      },
+                      refit=True,
+                      n_jobs=n_jobs)
+    gs.fit(X, y)
+    return gs
+
+
+def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
+    estimator = LinksClassifier()
+    grid = {
+        'alpha': [0.01, 0.1, 1, 10],
+        'kernel_gamma': ['auto'],
+        'kernel': ['rbf'],
+        'gamma': [0.1, 0.1, 1, 10],
+        'delta': [0.1, 0.1, 1, 10]
+    }
+    full_index = np.ones(len(X), dtype=bool)
+
+    gs = GridSearchCV(estimator=estimator,
+                      param_grid=grid,
+                      cv=[(full_index, full_index)],
+                      scoring=accuracy_scorer,
+                      fit_params={
+                          'X1': X1,
+                          'X2': X2,
+                          'z': z,
+                          'Xu': Xu
+                      },
+                      refit=True,
+                      verbose=2,
+                      n_jobs=n_jobs)
+    gs.fit(X, y)
+    return gs
+
+
+def train_labels_logit(X, y, X1, X2, z, Xu, n_jobs=1):
+    estimator = LogisticRegression(alpha=1)
+    grid = {
+        'kernel': ['rbf', ],
+        'alpha': [0.1, 1, 10],
+        'gamma': ['auto']
+    }
+    full_index = np.ones(len(X), dtype=bool)
+
+    gs = GridSearchCV(estimator=estimator,
+                      param_grid=grid,
+                      cv=[(full_index, full_index)],
+                      scoring=accuracy_scorer,
+                      fit_params={
+                      },
+                      refit=True,
+                      n_jobs=n_jobs)
+    gs.fit(X, y)
+    return gs
 
 
 def accuracy_scorer(estimator, X, y):
@@ -62,37 +165,6 @@ def accuracy_scorer(estimator, X, y):
     y_true = np.copy(y)
     y_true[y_true == -1] = 0
     return accuracy_score(y_true, y_pred)
-
-
-def plot_scores(ax, scores, vmin, vmax, range_x, range_y):
-    r = ax.imshow(scores.mean(axis=2), interpolation='nearest',
-                  cmap=plt.cm.hot,
-                  vmax=1,
-                  vmin=vmin, origin='lower')
-    ax.set_xticks(np.arange(len(range_x)))
-    ax.set_xticklabels(range_x)
-    ax.set_yticks(np.arange(len(range_y)))
-    ax.set_yticklabels(range_y)
-    return r
-
-
-def plot_tradeoff(train_scores, test_scores, range_x, range_y):
-    fig, ax = plt.subplots(ncols=2)
-    vmin = 0  # min(train_scores.min(), test_scores.min())
-    r = plot_scores(ax[0], train_scores, vmin=vmin, vmax=1,
-                    range_x=range_x,
-                    range_y=range_y)
-    ax[0].set_title('train score')
-
-    r = plot_scores(ax[1], test_scores, vmin=vmin, vmax=1,
-                    range_x=range_x,
-                    range_y=range_y)
-    ax[1].set_title('test score')
-
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(r, cax=cbar_ax)
-    return fig
 
 
 if __name__ == '__main__':
@@ -145,18 +217,26 @@ if __name__ == '__main__':
     parser.add_argument('--plot', type=bool, default=False,
                         help='folder to store results')
 
+    estimators = [
+                     ('LinksClassifier-labels', train_labels),
+                     ('LinksClassifier-labels-links', train_labels_links),
+                     ('LinksClassifier-labels-links-unlabeled', train_labels_links_unlabeled),
+                     ('LogisticRegression', train_labels_logit),
+
+                 ][::-1]
+
     args = parser.parse_args()
     for ds_name, loader in datasets.iteritems():
         X, y = loader()
         print(ds_name)
         ds_dir = os.path.join(args.dir, ds_name)
-        for est_name, estimator, grid in estimators:
+        for est_name, estimator_train_f in estimators:
             print(est_name)
             est_dir = os.path.join(ds_dir, est_name)
             if not os.path.exists(est_dir):
                 os.makedirs(est_dir)
-            percent_labels_range = [0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
-            percent_links_range = [0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
+            percent_labels_range = np.linspace(0.1, 1, 3)
+            percent_links_range = np.linspace(0.1, 1, 3)
             outer_cv = list(
                 StratifiedShuffleSplit(n_splits=args.cv_folds,
                                        test_size=args.cv_test_size,
@@ -179,41 +259,33 @@ if __name__ == '__main__':
                     fill_value=-1, dtype=float)
 
             if args.plot:
-                fig = plot_tradeoff(train_scores, test_scores)
+                fig = plot_tradeoff(train_scores, test_scores,
+                                    range_x=percent_labels_range,
+                                    range_y=percent_links_range)
                 fig.set_size_inches(15, 10)
                 fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
 
-            tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
+            #tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
 
             for (i_label, p_labels), (i_link, p_links) in \
                     itertools.product(enumerate(percent_labels_range),
                                       enumerate(percent_links_range)):
-                tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
-                tq.update(1)
+                #tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
+                #tq.update(1)
 
                 for i_split, (train, test) in enumerate(outer_cv):
                     if train_scores[i_label, i_link, i_split] != -1 and \
                                     test_scores[i_label, i_link, i_split] != -1:
                         continue
-                    X_train, y_train, X1_train, X2_train, z_train = \
+                    X_train, y_train, X1_train, X2_train, z_train, Xu_train = \
                         split_dataset(X[train],
                                       y[train],
                                       percent_labels=p_labels,
                                       percent_links=p_links)
 
-                    full_index = np.ones(len(X_train), dtype=bool)
+                    gs = estimator_train_f(X_train, y_train, X1_train, X2_train, z_train, Xu_train,
+                                           n_jobs=args.jobs)
 
-                    gs = GridSearchCV(estimator=estimator,
-                                      param_grid=grid,
-                                      cv=[(full_index, full_index)], scoring=accuracy_scorer,
-                                      fit_params={
-                                          'X1': X1_train,
-                                          'X2': X2_train,
-                                          'z': z_train,
-                                          'Xu': np.zeros(shape=(0, X.shape[1]))},
-                                      refit=True,
-                                      n_jobs=args.jobs)
-                    gs.fit(X_train, y_train)
                     tr_score = gs.best_score_
                     # print('tr score', tr_score)
                     train_scores[i_label, i_link, i_split] = tr_score
@@ -225,12 +297,12 @@ if __name__ == '__main__':
                     np.save(train_scores_filename, train_scores)
                     np.save(test_scores_filename, test_scores)
 
-            if args.plot:
-                fig = plot_tradeoff(train_scores, test_scores)
-                fig.set_size_inches(15, 10)
-                fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
-                tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
-
-
-
-# In[ ]:
+                    if args.plot:
+                        fig = plot_tradeoff(train_scores, test_scores,
+                                            range_x=percent_labels_range,
+                                            range_y=percent_links_range)
+                        fig.set_size_inches(15, 10)
+                        fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight',
+                                    dpi=300)
+                        tq = tqdm(total=len(percent_links_range) * len(percent_labels_range),
+                                  desc='')
