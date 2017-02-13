@@ -2,6 +2,7 @@
 
 # In[66]:
 from time import sleep
+import traceback
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,7 @@ from functools import partial
 from scipy.sparse import issparse
 
 from sklearn.datasets import load_svmlight_file, make_circles, make_moons
+import sys
 
 from links import LinksClassifier
 from logit import LogisticRegressionPairwise, LogisticRegression
@@ -122,32 +124,38 @@ def accuracy_scorer(estimator, X, y):
 
 
 def train_and_score(X_r, y_r, X1, X2, z, Xu, method, n_jobs=1):
-    estimator = LinksClassifier(init=method, sampling='predefined',
-                                verbose=False, delta=0.00, beta=0.5)
-    grid = {
-        # 'alpha': [0.01, 0.1, 1, 10],
-        'gamma': [0.01, 0.05, 0.1, 0.3, 0.5, 0.8, 1, 2],
-        'kernel': ['rbf'],
-        # 'beta': [0.1, 0.2, 0.3, 0],
-        # 'delta': []
-    }
-    full_index = np.ones(len(X_r), dtype=bool)
-    gs = GridSearchCV(estimator=estimator,
-                      param_grid=grid,
-                      cv=[(full_index, full_index)],
-                      scoring=accuracy_scorer,
-                      fit_params={
-                          'X1': X1,
-                          'X2': X2,
-                          'z': z,
-                          'Xu': Xu
-                      },
-                      refit=True,
-                      n_jobs=n_jobs,
-                      verbose=False)
-    gs.fit(X_r, y_r)
-    last_loss = gs.best_estimator_.last_loss
-    train_score = accuracy_scorer(gs, X_r, y_r)
+    try:
+        estimator = LinksClassifier(init=method, sampling='predefined',
+                                    verbose=False, delta=0.00, beta=0.5)
+
+        grid = {
+            # 'alpha': [0.01, 0.1, 1, 10],
+            'gamma': [0.01, 0.05, 0.1, 0.3, 0.5, 0.8, 1, 2],
+            'kernel': ['rbf'],
+            # 'beta': [0.1, 0.2, 0.3, 0],
+            # 'delta': []
+        }
+        full_index = np.ones(len(X_r), dtype=bool)
+        gs = GridSearchCV(estimator=estimator,
+                          param_grid=grid,
+                          cv=[(full_index, full_index)],
+                          scoring=accuracy_scorer,
+                          fit_params={
+                              'X1': X1,
+                              'X2': X2,
+                              'z': z,
+                              'Xu': Xu
+                          },
+                          refit=True,
+                          n_jobs=n_jobs,
+                          verbose=False)
+        gs.fit(X_r, y_r)
+        last_loss = gs.best_estimator_.last_loss
+        train_score = accuracy_scorer(gs, X_r, y_r)
+    except Exception as e:
+        e_t, e_v, e_tb = sys.exc_info()
+        e_tb = traceback.format_tb(e_tb)
+        return (e_t, e_v, e_tb)
     return last_loss, train_score
 
 
@@ -155,6 +163,8 @@ def call_wrapper(dataset, context):
     from start_sensitivity import train_and_score
     X_r, y_r, X1, X2, z, Xu = dataset
     result = train_and_score(X_r, y_r, X1, X2, z, Xu, context['method'])
+    if isinstance(result[1], Exception):
+        return context, result
     return context, {'loss': result[0], 'train_score': result[1]}
 
 
@@ -166,8 +176,12 @@ if __name__ == '__main__':
 
     def callback(context_result):
         context, result = context_result
-        cacher.set(context, result)
-        cacher.save()
+        if isinstance(result[1], Exception):
+            print(result[1])
+            print('\n'.join(result[2]))
+        else:
+            cacher.set(context, result)
+            cacher.save()
 
 
     pool = mp.Pool(processes=30)
