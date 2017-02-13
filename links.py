@@ -97,7 +97,8 @@ class LinksClassifier(BaseEstimator):
         self.n_classes = len(np.unique(y))
         self.fullX = np.vstack([X, self.X1, self.X2, self.Xu])
         self.K = self.kernel_f(self.fullX, self.fullX)
-        self.y = y
+        self.y = np.copy(y)
+        self.y[self.y == -1] = 0
 
         self.v = self.init_f()
 

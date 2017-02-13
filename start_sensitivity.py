@@ -79,6 +79,7 @@ def split_dataset(X, y, percent_labels, percent_links, unlabeled=True, random_st
         np.random.seed(random_state)
     if issparse(X):
         X = X.toarray()
+
     choice1 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
     choice1 = np.in1d(np.arange(len(y)), choice1)
 
@@ -224,13 +225,13 @@ if __name__ == '__main__':
         ready = 0
         for cntx, res in results:
             if res.ready():
-                ready+=1
+                ready += 1
                 callback(res.get())
         if ready == len(results):
             break
         if ready != tq.n:
             tq.update(ready - tq.n)
-            #cacher.save()
+            # cacher.save()
         sleep(3)
         continue
 
