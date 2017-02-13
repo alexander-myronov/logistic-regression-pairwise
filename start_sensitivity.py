@@ -14,7 +14,7 @@ from collections import OrderedDict
 from functools import partial
 from scipy.sparse import issparse
 
-from sklearn.datasets import load_svmlight_file, make_circles
+from sklearn.datasets import load_svmlight_file, make_circles, make_moons
 
 from links import LinksClassifier
 from logit import LogisticRegressionPairwise, LogisticRegression
