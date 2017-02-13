@@ -63,7 +63,7 @@ datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
 # In[80]:
 
 datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
-datasets['moons'] = make_circles(n_samples=400, noise=0.1)
+datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
 
 # In[82]:
