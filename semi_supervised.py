@@ -1,3 +1,4 @@
+from scipy.sparse import issparse
 from label_link_tradeoff import plot_tradeoff
 from new_experiment_runner.cacher import CSVCacher
 
@@ -18,7 +19,7 @@ import itertools
 from collections import OrderedDict
 from functools import partial
 
-from sklearn.datasets import load_svmlight_file
+from sklearn.datasets import load_svmlight_file, make_circles, make_moons
 
 from links import LinksClassifier
 from logit import LogisticRegressionPairwise, LogisticRegression
@@ -62,10 +63,10 @@ def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
 def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
     estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
     grid = {
-        'alpha': [0.01, 0.1, 1, 10],
-        'gamma': ['auto'],
+        #'alpha': [0.01, 0.1, 1, 10],
+        'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2],
         'kernel': ['rbf'],
-        'beta': [0.1, 0.1, 1, 10]
+        #'delta': [0.1, 0.1, 1, 10]
     }
     full_index = np.ones(len(X), dtype=bool)
 
@@ -88,10 +89,9 @@ def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
 def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
     estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
     grid = {
-        'alpha': [0.01, 0.1, 1, 10],
-        'gamma': [1e-4, 1e-3, 1e-2, 1e-1, 1],
+        #'alpha': [0.01, 0.1, 1, 10],
+        'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2],
         'kernel': ['rbf'],
-        'beta': [0.1, 0.1, 1, 10],
         'delta': [0.1, 0.1, 1, 10]
     }
     full_index = np.ones(len(X), dtype=bool)
@@ -152,10 +152,11 @@ if __name__ == '__main__':
         r'data/breast-cancer_scale.libsvm',
     ]
 
-
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
                              load_svmlight_file(f))
                             for f in datafiles_toy])
+    datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
+    datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
     parser = argparse.ArgumentParser(description='Model evaluation script')
     parser.add_argument('--cv_folds', type=int, default=3,
@@ -169,98 +170,62 @@ if __name__ == '__main__':
     parser.add_argument('--file', type=str, default='data/results_semi.csv',
                         help='folder to store results')
 
-
     estimators = [
-                     # ('LinksClassifier-labels', train_labels),
-                     ('LinksClassifier-labels-links', train_labels_links),
-                     ('LinksClassifier-labels-links-unlabeled', train_labels_links_unlabeled),
-                     # ('LogisticRegression', train_labels_logit),
+        # ('LinksClassifier-labels', train_labels),
+        ('LinksClassifier-labels-links', train_labels_links),
+        ('LinksClassifier-labels-links-unlabeled', train_labels_links_unlabeled),
+        # ('LogisticRegression', train_labels_logit),
 
-                 ][::-1]
-
-    max_k = 50
-    cacher = CSVCacher(filename=args.file)
+    ]
 
     args = parser.parse_args()
+    cacher = CSVCacher(filename=args.file)
 
-
-    for ds_name, loader in datasets.iteritems():
-        X, y = loader()
+    context = {'cv_test_size': args.cv_test_size}
+    context = {'cv_random_state': 42}
+    for ds_name, (X, y) in datasets.iteritems():
+        if issparse(X):
+            X = X.toarray()
+        context['dataset'] = ds_name
         print(ds_name)
-        ds_dir = os.path.join(args.dir, ds_name)
         for est_name, estimator_train_f in estimators:
             print(est_name)
-            est_dir = os.path.join(ds_dir, est_name)
-            if not os.path.exists(est_dir):
-                os.makedirs(est_dir)
-            percent_labels_range = np.linspace(0.1, 1, 3)
-            percent_links_range = np.linspace(0.1, 1, 3)
+            context['estimator'] = est_name
+
+            percent_labels_range = [0.3]# np.linspace(0.1, 0.3, 5)
+            percent_links_range = [0.3]#np.linspace(0.1, 0.3, 5)
             outer_cv = list(
                 StratifiedShuffleSplit(n_splits=args.cv_folds,
                                        test_size=args.cv_test_size,
                                        random_state=42).split(X, y))
 
-            train_scores_filename = os.path.join(est_dir, 'train_scores.npy')
-            test_scores_filename = os.path.join(est_dir, 'test_scores.npy')
-
-            if os.path.isfile(train_scores_filename):
-                train_scores = np.load(train_scores_filename)
-            else:
-                train_scores = np.full(
-                    shape=(len(percent_labels_range), len(percent_links_range), len(outer_cv)),
-                    fill_value=-1, dtype=float)
-            if os.path.isfile(train_scores_filename):
-                test_scores = np.load(train_scores_filename)
-            else:
-                test_scores = np.full(
-                    shape=(len(percent_labels_range), len(percent_links_range), len(outer_cv)),
-                    fill_value=-1, dtype=float)
-
-            if args.plot:
-                fig = plot_tradeoff(train_scores, test_scores,
-                                    range_x=percent_labels_range,
-                                    range_y=percent_links_range)
-                fig.set_size_inches(15, 10)
-                fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
-
-            # tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
-
             for (i_label, p_labels), (i_link, p_links) in \
                     itertools.product(enumerate(percent_labels_range),
                                       enumerate(percent_links_range)):
-                # tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
-                # tq.update(1)
 
-                for i_split, (train, test) in enumerate(outer_cv):
-                    if train_scores[i_label, i_link, i_split] != -1 and \
-                                    test_scores[i_label, i_link, i_split] != -1:
-                        continue
+                context['percent_labels'] = p_labels
+                context['percent_links'] = p_links
+
+                for i_split, (train, test) in tqdm(list(enumerate(outer_cv))):
+                    context['cv_split'] = i_split
                     X_train, y_train, X1_train, X2_train, z_train, Xu_train = \
                         split_dataset(X[train],
                                       y[train],
                                       percent_labels=p_labels,
-                                      percent_links=p_links)
+                                      percent_links=p_links,
+                                      unlabeled=True)
+                    if len(cacher.get(context) > 1):
+                        continue
 
                     gs = estimator_train_f(X_train, y_train, X1_train, X2_train, z_train, Xu_train,
                                            n_jobs=args.jobs)
 
                     tr_score = gs.best_score_
                     # print('tr score', tr_score)
-                    train_scores[i_label, i_link, i_split] = tr_score
 
                     te_score = accuracy_scorer(gs, X[test], y[test])
                     # print('te score', te_score)
-                    test_scores[i_label, i_link, i_split] = te_score
 
-                    np.save(train_scores_filename, train_scores)
-                    np.save(test_scores_filename, test_scores)
 
-                    if args.plot:
-                        fig = plot_tradeoff(train_scores, test_scores,
-                                            range_x=percent_labels_range,
-                                            range_y=percent_links_range)
-                        fig.set_size_inches(15, 10)
-                        fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight',
-                                    dpi=300)
-                        tq = tqdm(total=len(percent_links_range) * len(percent_labels_range),
-                                  desc='')
+                    cacher.set(context, {'train_score': tr_score, 'test_score': te_score})
+                    cacher.save()

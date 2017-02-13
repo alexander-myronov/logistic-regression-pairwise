@@ -137,7 +137,7 @@ class LinksClassifier(BaseEstimator):
                                       self.v,
                                       # approx_grad=True,
                                       fprime=fprime,
-                                      maxiter=1000,
+                                      maxiter=100,
                                       disp=0,
                                       callback=cb if self.verbose else None,
                                       avextol=0.001)

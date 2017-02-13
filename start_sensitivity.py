@@ -202,16 +202,21 @@ if __name__ == '__main__':
                                            'context': context,
                                        },
                                        callback=callback)
-                results.append(res)
+                results.append((context, res))
 
     tq = tqdm(total=len(results))
 
     while True:
-        ready = sum(map(lambda r: r.ready(), results))
+        ready = 0
+        for cntx, res in results:
+            if res.ready():
+                ready+=1
+                callback(res.get())
         if ready == len(results):
             break
         if ready != tq.n:
             tq.update(ready - tq.n)
+            #cacher.save()
         sleep(3)
         continue
 
