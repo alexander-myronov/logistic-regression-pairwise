@@ -1,6 +1,7 @@
 # coding: utf-8
 
 # In[66]:
+import argparse
 from time import sleep
 import traceback
 
@@ -37,7 +38,7 @@ from new_experiment_runner.cacher import CSVCacher
 
 datafiles_toy = [
     r'data/diabetes_scale.libsvm',
-    r'data/breast-cancer_scale.libsvm',
+    # r'data/breast-cancer_scale.libsvm',
 ]
 
 
@@ -74,7 +75,7 @@ datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
 # In[87]:
 
-def split_dataset(X, y, percent_labels, percent_links, unlabeled=True, random_state=42):
+def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42):
     if random_state:
         np.random.seed(random_state)
     if issparse(X):
@@ -106,11 +107,14 @@ def split_dataset(X, y, percent_labels, percent_links, unlabeled=True, random_st
     labels_index = np.in1d(np.arange(len(y)), labels_choice)
 
     unsup_index = ~(labels_index & links_index)
+    unsup_where = np.where(unsup_index)[0]
+    unsup_choice = np.random.choice(unsup_where, size=int(percent_unlabeled * len(y)),
+                                    replace=False)
 
     # print(labels_index.sum(), links_index.sum(), unsup_index.sum())
     assert (labels_index | links_index | unsup_index).sum() == len(y)
 
-    return X[labels_index], y[labels_index], X[choice1], X[choice2], z, X[unsup_index]
+    return X[labels_index], y[labels_index], X[choice1], X[choice2], z, X[unsup_choice]
 
 
 # In[88]:
@@ -127,11 +131,12 @@ def accuracy_scorer(estimator, X, y):
 def train_and_score(X_r, y_r, X1, X2, z, Xu, method, n_jobs=1):
     try:
         estimator = LinksClassifier(init=method, sampling='predefined',
-                                    verbose=False, delta=0.00, beta=0.5)
+                                    verbose=False, delta=0.01, beta=0.5,
+                                    solver='tnc')
 
         grid = {
             # 'alpha': [0.01, 0.1, 1, 10],
-            'gamma': [0.01, 0.05, 0.1, 0.3, 0.5, 0.8, 1, 2],
+            'gamma': [0.01, 0.05, 0.1, 0.3, 0.5, 1],
             'kernel': ['rbf'],
             # 'beta': [0.1, 0.2, 0.3, 0],
             # 'delta': []
@@ -171,8 +176,21 @@ def call_wrapper(dataset, context):
 
 if __name__ == '__main__':
 
-    max_k = 50
-    cacher = CSVCacher(filename='data/start_sensitivity.csv')
+    parser = argparse.ArgumentParser(description='Model evaluation script')
+
+    parser.add_argument('--jobs', type=int, default=1,
+                        help='number of parallel jobs, -1 for all')
+
+    parser.add_argument('--file', type=str, default='data/results_sens.csv',
+                        help='file to store results')
+
+    parser.add_argument('--k', type=int, default=50,
+                        help='number of tests')
+
+    args = parser.parse_args()
+
+    max_k = args.k
+    cacher = CSVCacher(filename=args.file)
 
 
     def callback(context_result):
@@ -185,7 +203,10 @@ if __name__ == '__main__':
             cacher.save()
 
 
-    pool = mp.Pool(processes=30)
+    n_jobs = args.jobs
+    if n_jobs == -1:
+        n_jobs = mp.cpu_count()
+    pool = mp.Pool(processes=args.jobs)
     mp.freeze_support()
     results = []
 
@@ -193,9 +214,11 @@ if __name__ == '__main__':
     for ds_name, (X, y) in datasets.iteritems():
         context['dataset'] = ds_name
         print(ds_name)
-        dataset_tuple = split_dataset(X, y, percent_labels=0.3, percent_links=0.3,
-                                      unlabeled=True)
-        for method in ['normal_univariate',
+        dataset_tuple = split_dataset(X, y, percent_labels=0.15, percent_links=0.15,
+                                      percent_unlabeled=0.2)
+        for method in ['zeros',
+                       'normal',
+                       'normal_univariate',
                        'normal_multivariate',
                        'random_labels',
                        'random_links_diff']:
@@ -207,9 +230,11 @@ if __name__ == '__main__':
                 if len(cacher.get(context) > 0):
                     continue
 
-                # last_loss, train_score = train_and_score(*dataset_tuple, method=method, n_jobs=1)
+                # last_loss, train_score = train_and_score(*dataset_tuple, method=method,
+                #                                          n_jobs=args.jobs)
                 # cacher.set(context, {'loss': last_loss, 'train_score': train_score})
                 # cacher.save()
+                # continue
 
                 res = pool.apply_async(call_wrapper,
                                        kwds={

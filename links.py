@@ -4,6 +4,7 @@ import pandas as pd
 import scipy.optimize
 from scipy.spatial.distance import cdist, squareform, pdist
 from sklearn.base import BaseEstimator
+import time
 
 
 def sigmoid(x):
@@ -20,7 +21,8 @@ class LinksClassifier(BaseEstimator):
                  verbose=False,
                  sampling='random',
                  init='zeros',
-                 delta=1):
+                 delta=1,
+                 solver='ncg'):
         self.v = None
         self.alpha = alpha
         self.X = None
@@ -35,6 +37,7 @@ class LinksClassifier(BaseEstimator):
 
         self.sampling = sampling
         self.init = init
+        self.solver = solver
 
     def kernel_f(self, X, X_prim=None):
         if self.kernel == 'linear':
@@ -59,7 +62,7 @@ class LinksClassifier(BaseEstimator):
         if self.init == 'zeros':
             return np.zeros(shape=(self.n_classes - 1, self.K.shape[1]))
         if self.init == 'normal':
-            return np.random.normal(loc=0, scale=1,
+            return np.random.normal(loc=0, scale=0.5,
                                     size=(self.n_classes - 1, self.K.shape[1]))
         if self.init == 'normal_univariate':
             means = np.mean(self.K, axis=0)
@@ -129,22 +132,66 @@ class LinksClassifier(BaseEstimator):
             err = np.abs(num_grad_all - an_grad_all)
             print('total gradient error: %f' % np.sum(err ** 2))
 
+        start_time = time.time()
+        result_v = self.v
+
         def cb(v):
+            global result_v
             tr_loss, l_loss, n_loss, u_loss = f(v, split=True)
-            print('loss: traditional=%.3f, links=%.3f, norm=%.3f, unsup=%.3f' % \
-                  (tr_loss, l_loss, n_loss, u_loss))
+            if self.verbose:
+                print('loss: traditional=%.3f, links=%.3f, norm=%.3f, unsup=%.3f' % \
+                      (tr_loss, l_loss, n_loss, u_loss))
+            if time.time() - start_time > 40:
+                result_v = v
+                raise Exception('timeout')
 
-        res = scipy.optimize.fmin_ncg(f,
-                                      self.v,
-                                      # approx_grad=True,
-                                      fprime=fprime,
-                                      maxiter=100,
-                                      disp=0,
-                                      callback=cb if self.verbose else None,
-                                      avextol=0.001)
+        if self.verbose:
+            print('K size: ', self.K.shape[0])
+        try:
 
-        self.v = res
+            if self.solver == 'ncg':
+                res = scipy.optimize.fmin_ncg(f,
+                                              self.v,
+                                              # approx_grad=True,
+                                              fprime=fprime,
+                                              maxiter=100,
+                                              disp=0,
+                                              callback=cb,
+                                              avextol=0.001,
+                                              epsilon=1e-5)
+            elif self.solver == 'tnc':
+                res = scipy.optimize.fmin_tnc(f,
+                                              self.v,
+                                              # approx_grad=True,
+                                              fprime=fprime,
+                                              #maxiter=100,
+                                              disp=0,
+                                              callback=cb,
+                                              #avextol=0.001,
+                                              )
+                res = res[0]
+
+            elif self.solver == 'bfgs':
+                res = scipy.optimize.fmin_bfgs(f,
+                                               self.v,
+                                               # approx_grad=True,
+                                               fprime=fprime,
+                                               maxiter=1000,
+                                               disp=0,
+                                               callback=cb,
+                                               # pgtol=0.001,
+                                               )
+            else:
+                raise Exception('unknown solver: %s' % self.solver)
+            self.v = res
+        except Exception:
+            self.v = result_v.ravel()
+            print('Timeout')
+
         self.last_loss = f(self.v)
+        if self.verbose:
+            print(self.gamma, 'training stopped at ', self.last_loss)
+
         self.v = self.v.reshape(self.n_classes - 1, -1)
         return self
 

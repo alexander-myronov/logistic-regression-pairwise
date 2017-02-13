@@ -60,13 +60,13 @@ def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
     return gs
 
 
-def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
-    estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
+def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1, kernel='rbf'):
+    estimator = LinksClassifier(sampling='predefined', init='zeros', verbose=False)
     grid = {
-        #'alpha': [0.01, 0.1, 1, 10],
+        # 'alpha': [0.01, 0.1, 1, 10],
         'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2],
-        'kernel': ['rbf'],
-        #'delta': [0.1, 0.1, 1, 10]
+        'kernel': [kernel],
+        # 'delta': [0.1, 0.1, 1, 10]
     }
     full_index = np.ones(len(X), dtype=bool)
 
@@ -86,13 +86,13 @@ def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
     return gs
 
 
-def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
-    estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
+def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1, kernel='rbf'):
+    estimator = LinksClassifier(sampling='predefined', init='zeros', verbose=False)
     grid = {
-        #'alpha': [0.01, 0.1, 1, 10],
-        'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2],
-        'kernel': ['rbf'],
-        'delta': [0.1, 0.1, 1, 10]
+        # 'alpha': [0.01, 0.1, 1, 10],
+        'gamma': [0.05, 0.1, 0.5, 1, 2],
+        'kernel': [kernel],
+        'delta': [0.01, 0.1, 0.3, 0.6]
     }
     full_index = np.ones(len(X), dtype=bool)
 
@@ -107,7 +107,7 @@ def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
                           'Xu': Xu
                       },
                       refit=True,
-                      verbose=False,
+                      verbose=0,
                       n_jobs=n_jobs)
     gs.fit(X, y)
     return gs
@@ -149,7 +149,9 @@ if __name__ == '__main__':
 
     datafiles_toy = [
         r'data/diabetes_scale.libsvm',
-        r'data/breast-cancer_scale.libsvm',
+        # r'data/breast-cancer_scale.libsvm',
+        # r'data/australian_scale.libsvm',
+        # r'data/ionosphere_scale.libsvm',
     ]
 
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
@@ -192,19 +194,22 @@ if __name__ == '__main__':
             print(est_name)
             context['estimator'] = est_name
 
-            percent_labels_range = [0.3]# np.linspace(0.1, 0.3, 5)
-            percent_links_range = [0.3]#np.linspace(0.1, 0.3, 5)
+            percent_labels_range = [0.2]  # np.linspace(0.1, 0.3, 5)
+            percent_links_range = [0.2]  # np.linspace(0.1, 0.3, 5)
+            percent_unlabeled_range = [0.2]
             outer_cv = list(
                 StratifiedShuffleSplit(n_splits=args.cv_folds,
                                        test_size=args.cv_test_size,
                                        random_state=42).split(X, y))
 
-            for (i_label, p_labels), (i_link, p_links) in \
+            for (i_label, p_labels), (i_link, p_links), (i_unlableled, p_unlabeled) in \
                     itertools.product(enumerate(percent_labels_range),
-                                      enumerate(percent_links_range)):
+                                      enumerate(percent_links_range),
+                                      enumerate(percent_unlabeled_range)):
 
                 context['percent_labels'] = p_labels
                 context['percent_links'] = p_links
+                context['percent_unlabeled'] = p_unlabeled
 
                 for i_split, (train, test) in tqdm(list(enumerate(outer_cv))):
                     context['cv_split'] = i_split
@@ -213,12 +218,12 @@ if __name__ == '__main__':
                                       y[train],
                                       percent_labels=p_labels,
                                       percent_links=p_links,
-                                      unlabeled=True)
+                                      percent_unlabeled=p_unlabeled)
                     if len(cacher.get(context) > 1):
                         continue
 
                     gs = estimator_train_f(X_train, y_train, X1_train, X2_train, z_train, Xu_train,
-                                           n_jobs=args.jobs)
+                                           n_jobs=args.jobs, kernel='rbf')
 
                     tr_score = gs.best_score_
                     # print('tr score', tr_score)
