@@ -13,26 +13,28 @@ def sigmoid(x):
 class LinksClassifier(BaseEstimator):
     def __init__(self,
                  alpha=1,
-                 gamma=1,
+                 beta=1,
                  kernel='linear',
-                 kernel_gamma='auto',
+                 gamma='auto',
                  percent_pairs=0.5,
                  verbose=False,
                  sampling='random',
+                 init='zeros',
                  delta=1):
         self.v = None
         self.alpha = alpha
         self.X = None
-        self.gamma = gamma
+        self.beta = beta
         self.n_classes = None
         self.delta = delta
         self.kernel = kernel
 
-        self.kernel_gamma = kernel_gamma
+        self.gamma = gamma
         self.percent_pairs = percent_pairs
         self.verbose = verbose
 
         self.sampling = sampling
+        self.init = init
 
     def kernel_f(self, X, X_prim=None):
         if self.kernel == 'linear':
@@ -46,12 +48,46 @@ class LinksClassifier(BaseEstimator):
     def rbf_kernel(self, X, X_prim=None):
         if X_prim is None:
             X_prim = self.fullX
-        if self.kernel_gamma == 'auto':
+        if self.gamma == 'auto':
             gamma = 1.0 / X.shape[1]
         else:
-            gamma = self.kernel_gamma
+            gamma = self.gamma
         dist = cdist(X, X_prim, metric='sqeuclidean')
         return np.exp(-gamma * dist)
+
+    def init_f(self):
+        if self.init == 'zeros':
+            return np.zeros(shape=(self.n_classes - 1, self.K.shape[1]))
+        if self.init == 'normal':
+            return np.random.normal(loc=0, scale=1,
+                                    size=(self.n_classes - 1, self.K.shape[1]))
+        if self.init == 'normal_univariate':
+            means = np.mean(self.K, axis=0)
+            stds = np.std(self.K, axis=0)
+            return np.random.normal(loc=means, scale=stds,
+                                    size=(self.n_classes - 1, self.K.shape[1]))
+        if self.init == 'normal_multivariate':
+            means = np.mean(self.K, axis=0)
+            cov = np.cov(self.K, rowvar=False)
+            return np.random.multivariate_normal(mean=means, cov=cov,
+                                                 size=(self.n_classes - 1))
+        if self.init == 'random_labels':
+            result = np.zeros(shape=(self.n_classes - 1, self.K.shape[1]))
+            for k in xrange(self.n_classes - 1):
+                rand = np.random.choice(np.where(self.y == k)[0], size=1)
+                result[k, :] = self.K[:len(self.X)][rand]
+            return result
+        if self.init == 'random_links_diff':
+            result = np.zeros(shape=(self.n_classes - 1, self.K.shape[1]))
+            for k in xrange(self.n_classes - 1):
+                rand = np.random.choice(np.arange(len(self.z)), size=1)
+                result[k, :] = \
+                    (self.K[len(self.X):len(self.X) + len(self.X1)][rand] -
+                     self.K[len(self.X) + len(self.X1):len(self.X) + len(self.X1) + len(self.X2)]
+                     [rand])
+            return result
+        else:
+            raise Exception("wrong init method: %s" % self.init)
 
     def fit(self, X, y, **kwargs):
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
@@ -61,14 +97,15 @@ class LinksClassifier(BaseEstimator):
         self.n_classes = len(np.unique(y))
         self.fullX = np.vstack([X, self.X1, self.X2, self.Xu])
         self.K = self.kernel_f(self.fullX, self.fullX)
+        self.y = y
 
-        self.v = np.zeros(shape=(self.n_classes - 1, self.K.shape[1]))
+        self.v = self.init_f()
 
         f = partial(self.loss, X, y, self.X1, self.X2, self.z, self.Xu,
-                    alpha=self.alpha, gamma=self.gamma, delta=self.delta)
+                    alpha=self.alpha, gamma=self.beta, delta=self.delta)
 
         fprime = partial(self.loss_grad, X, y, self.X1, self.X2, self.z, self.Xu,
-                         alpha=self.alpha, gamma=self.gamma, delta=self.delta)
+                         alpha=self.alpha, gamma=self.beta, delta=self.delta)
 
         fprime_lloss = partial(self.links_loss_grad, X, self.X1, self.X2, self.z)
         f_lloss = partial(self.links_loss, self.X1, self.X2, self.z)
@@ -100,12 +137,13 @@ class LinksClassifier(BaseEstimator):
                                       self.v,
                                       # approx_grad=True,
                                       fprime=fprime,
-                                      maxiter=10000,
+                                      maxiter=1000,
                                       disp=0,
-                                      callback=cb if self.verbose else None)
+                                      callback=cb if self.verbose else None,
+                                      avextol=0.001)
 
         self.v = res
-        last_loss = f(self.v)
+        self.last_loss = f(self.v)
         self.v = self.v.reshape(self.n_classes - 1, -1)
         return self
 
@@ -125,10 +163,9 @@ class LinksClassifier(BaseEstimator):
             if X1.shape[1] == X.shape[1] - 1:
                 X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
             if X2.shape[1] == X.shape[1] - 1:
-                X2= np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
+                X2 = np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
             if Xu.shape[1] == X.shape[1] - 1:
                 Xu = np.hstack([np.ones(shape=(Xu.shape[0], 1)), Xu])
-
 
         return X1, X2, z, Xu
 
@@ -149,9 +186,9 @@ class LinksClassifier(BaseEstimator):
 
         probs = LinksClassifier(
             alpha=0,
-            gamma=self.gamma,
+            beta=self.beta,
             kernel=self.kernel,
-            kernel_gamma=self.kernel_gamma,
+            gamma=self.gamma,
             percent_pairs=self.percent_pairs,
             sampling='random'
         ).fit(X, y).predict_proba(X)[:, 1]
@@ -250,7 +287,7 @@ class LinksClassifier(BaseEstimator):
         u_loss = np.sum(unsup_loss_by_class, axis=1)
         if len(u_loss) == 0:
             return 0
-        return u_loss
+        return np.sum(u_loss)
 
     def dpkx_dvk(self, exps, k):
 
@@ -340,7 +377,8 @@ class LinksClassifier(BaseEstimator):
                         prob_grad_j = self.dpkx_dvm(exps_j, k=l, m=k)
 
                 prob_grad_i = self.K[len(X):len(X1) + len(X)] * prob_grad_i.reshape(-1, 1)
-                prob_grad_j = self.K[len(X1) + len(X):] * prob_grad_j.reshape(-1, 1)
+                prob_grad_j = self.K[len(X1) + len(X):len(X) + len(X1) + len(X2)] * \
+                              prob_grad_j.reshape(-1, 1)
 
                 p2_grad = probs_j[:, l].reshape(-1, 1) * prob_grad_i + \
                           probs_i[:, l].reshape(-1, 1) * prob_grad_j

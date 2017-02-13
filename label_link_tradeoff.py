@@ -27,7 +27,7 @@ estimators = [
      LinksClassifier(sampling='predefined'),
      {
          'alpha': [0.01, 0.1, 1, 10],
-         'kernel_gamma': ['auto'],
+         'gamma': ['auto'],
          'kernel': ['rbf'],
          'gamma': [0.1, 0.1, 1, 10]
      }),

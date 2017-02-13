@@ -55,9 +55,9 @@ def split_dataset(X, y, percent_labels, percent_links):
 
 links_grid = {
     'alpha': [0.01, 0.1, 1, 10],
-    'kernel_gamma': ['auto'],
+    'gamma': ['auto'],
     'kernel': ['rbf'],
-    'gamma': [0.1, 0.1, 1, 10]
+    'beta': [0.1, 0.1, 1, 10]
 }
 
 
@@ -65,7 +65,7 @@ def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
     estimator = LinksClassifier()
     grid = {
         'alpha': [0.01, 0.1, 1, 10],
-        'kernel_gamma': ['auto'],
+        'gamma': ['auto'],
         'kernel': ['rbf'],
         # 'gamma': [0.1, 0.1, 1, 10]
     }
@@ -87,9 +87,9 @@ def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
     estimator = LinksClassifier()
     grid = {
         'alpha': [0.01, 0.1, 1, 10],
-        'kernel_gamma': ['auto'],
+        'gamma': ['auto'],
         'kernel': ['rbf'],
-        'gamma': [0.1, 0.1, 1, 10]
+        'beta': [0.1, 0.1, 1, 10]
     }
     full_index = np.ones(len(X), dtype=bool)
 
@@ -113,9 +113,9 @@ def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
     estimator = LinksClassifier()
     grid = {
         'alpha': [0.01, 0.1, 1, 10],
-        'kernel_gamma': ['auto'],
+        'gamma': ['auto'],
         'kernel': ['rbf'],
-        'gamma': [0.1, 0.1, 1, 10],
+        'beta': [0.1, 0.1, 1, 10],
         'delta': [0.1, 0.1, 1, 10]
     }
     full_index = np.ones(len(X), dtype=bool)

@@ -465,7 +465,8 @@ class LogisticRegressionPairwise(BaseEstimator):
 
 
 def plot_moons(estimator):
-    X, y = make_moons(n_samples=400, noise=0.10, random_state=0)
+    X, y = make_circles(n_samples=400, noise=0.1)#make_moons(n_samples=400, noise=0.10, random_state=0)
+
     X = StandardScaler().fit_transform(X)
 
     X_train, X_test, y_train, y_test = \
@@ -506,9 +507,9 @@ def compare_moons():
     plot_moons(
         # GridSearchCV(1
         LinksClassifier(alpha=2,
-                        gamma=0.01,
+                        beta=0.01,
                         kernel='rbf',
-                        kernel_gamma=3,
+                        gamma=3,
                         verbose=True,
                         percent_pairs=0.35,
                         sampling='max_kdist'))
@@ -542,34 +543,35 @@ def compare_moons():
 
 if __name__ == '__main__':
 
-    X, y = make_classification(n_samples=80,
-                               n_features=20,
-                               n_informative=15,
-                               n_classes=3,
-                               random_state=42)
-    clf = make_pipeline(StandardScaler(),
-                        LinksClassifier(alpha=2,
-                                        gamma=0.005,
-                                        kernel='rbf',
-                                        kernel_gamma=0.01,
-                                        verbose=True,
-                                        percent_pairs=0.5,
-                                        sampling='max_kdist'))
-
-    compare = make_pipeline(StandardScaler(),
-                            SVC(C=1, kernel='rbf', gamma=0.1))
-
-    kf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
-
-    print(cross_val_score(clf,
-                          X=X, y=y,
-                          scoring=make_scorer(accuracy_score),
-                          cv=kf))
-    print(cross_val_score(compare,
-                          X=X, y=y,
-                          scoring=make_scorer(accuracy_score),
-                          cv=kf))
-    exit()
+    # X, y = make_classification(n_samples=80,
+    #                            n_features=20,
+    #                            n_informative=15,
+    #                            n_classes=3,
+    #                            random_state=42)
+    # clf = make_pipeline(StandardScaler(),
+    #                     LinksClassifier(alpha=2,
+    #                                     beta=0.005,
+    #                                     kernel='rbf',
+    #                                     gamma=0.01,
+    #                                     verbose=True,
+    #                                     percent_pairs=0.5,
+    #                                     sampling='random',
+    #                                     init='zeros'))
+    #
+    # compare = make_pipeline(StandardScaler(),
+    #                         SVC(C=1, kernel='rbf', gamma=0.1))
+    #
+    # kf = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
+    #
+    # print(cross_val_score(clf,
+    #                       X=X, y=y,
+    #                       scoring=make_scorer(accuracy_score),
+    #                       cv=kf))
+    # # print(cross_val_score(compare,
+    # #                       X=X, y=y,
+    # #                       scoring=make_scorer(accuracy_score),
+    # #                       cv=kf))
+    # exit()
 
     compare_moons()
     plt.show()
