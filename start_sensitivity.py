@@ -206,8 +206,8 @@ if __name__ == '__main__':
     n_jobs = args.jobs
     if n_jobs == -1:
         n_jobs = mp.cpu_count()
-    pool = mp.Pool(processes=args.jobs)
-    mp.freeze_support()
+    # pool = mp.Pool(processes=n_jobs)
+    # mp.freeze_support()
     results = []
 
     context = {}
@@ -230,19 +230,19 @@ if __name__ == '__main__':
                 if len(cacher.get(context) > 0):
                     continue
 
-                # last_loss, train_score = train_and_score(*dataset_tuple, method=method,
-                #                                          n_jobs=args.jobs)
-                # cacher.set(context, {'loss': last_loss, 'train_score': train_score})
-                # cacher.save()
-                # continue
+                last_loss, train_score = train_and_score(*dataset_tuple, method=method,
+                                                         n_jobs=args.jobs)
+                cacher.set(context, {'loss': last_loss, 'train_score': train_score})
+                cacher.save()
+                continue
 
-                res = pool.apply_async(call_wrapper,
-                                       kwds={
-                                           'dataset': dataset_tuple,
-                                           'context': context,
-                                       },
-                                       callback=callback)
-                results.append((context, res))
+                # res = pool.apply_async(call_wrapper,
+                #                        kwds={
+                #                            'dataset': dataset_tuple,
+                #                            'context': context,
+                #                        },
+                #                        callback=callback)
+                # results.append((context, res))
 
     tq = tqdm(total=len(results))
 
