@@ -126,7 +126,7 @@ def train_and_score(X_r, y_r, X1, X2, z, Xu, method, n_jobs=1):
                                 verbose=False, delta=0.00, beta=0.5)
     grid = {
         # 'alpha': [0.01, 0.1, 1, 10],
-        'gamma': [1e-4, 1e-3, 1e-2, 1e-1, 1],
+        'gamma': [0.01, 0.05, 0.1, 0.3, 0.5, 0.8, 1, 2],
         'kernel': ['rbf'],
         # 'beta': [0.1, 0.2, 0.3, 0],
         # 'delta': []
@@ -170,7 +170,7 @@ if __name__ == '__main__':
         cacher.save()
 
 
-    pool = mp.Pool(processes=4)
+    pool = mp.Pool(processes=30)
     mp.freeze_support()
     results = []
 
@@ -192,9 +192,10 @@ if __name__ == '__main__':
                 if len(cacher.get(context) > 0):
                     continue
 
-                # last_loss, train_score = train_and_score(*dataset_tuple, method=method, n_jobs=-1)
+                # last_loss, train_score = train_and_score(*dataset_tuple, method=method, n_jobs=1)
                 # cacher.set(context, {'loss': last_loss, 'train_score': train_score})
                 # cacher.save()
+
                 res = pool.apply_async(call_wrapper,
                                        kwds={
                                            'dataset': dataset_tuple,

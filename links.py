@@ -80,7 +80,7 @@ class LinksClassifier(BaseEstimator):
         if self.init == 'random_links_diff':
             result = np.zeros(shape=(self.n_classes - 1, self.K.shape[1]))
             for k in xrange(self.n_classes - 1):
-                rand = np.random.choice(np.arange(len(self.z)), size=1)
+                rand = np.random.choice(np.where(self.z == 0)[0], size=1)
                 result[k, :] = \
                     (self.K[len(self.X):len(self.X) + len(self.X1)][rand] -
                      self.K[len(self.X) + len(self.X1):len(self.X) + len(self.X1) + len(self.X2)]

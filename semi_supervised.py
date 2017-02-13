@@ -1,4 +1,5 @@
 from label_link_tradeoff import plot_tradeoff
+from new_experiment_runner.cacher import CSVCacher
 
 __author__ = 'myronov'
 
@@ -26,32 +27,7 @@ from sklearn.model_selection import ParameterGrid, StratifiedShuffleSplit, GridS
 
 from tqdm import tqdm as tqdm
 
-
-def sample_links_random(X, y, percent_links):
-    # np.random.seed(44)
-    num = int(len(y) * percent_links)
-
-    choice1 = np.random.choice(len(y), size=num, replace=True)
-    X1 = X[choice1]
-    choice2 = np.random.choice(len(y), size=num, replace=True)
-    X2 = X[choice2]
-    z = (y[choice1] == y[choice2]).astype(float)
-
-    return X1, X2, z
-
-
-def split_dataset(X, y, percent_labels, percent_links):
-    X1, X2, z = sample_links_random(X, y, percent_links)
-
-    if percent_labels < 1:
-        labels_choice = \
-            next(StratifiedShuffleSplit(n_splits=1, train_size=percent_labels).split(X, y))[0]
-    else:
-        labels_choice = np.arange(0, len(X))
-    index = np.zeros(len(X), dtype=bool)
-    index[labels_choice] = True
-    return X[index], y[index], X1, X2, z, X[~index]
-
+from start_sensitivity import split_dataset
 
 links_grid = {
     'alpha': [0.01, 0.1, 1, 10],
@@ -62,7 +38,7 @@ links_grid = {
 
 
 def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
-    estimator = LinksClassifier()
+    estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
     grid = {
         'alpha': [0.01, 0.1, 1, 10],
         'gamma': ['auto'],
@@ -84,7 +60,7 @@ def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
 
 
 def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
-    estimator = LinksClassifier()
+    estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
     grid = {
         'alpha': [0.01, 0.1, 1, 10],
         'gamma': ['auto'],
@@ -110,10 +86,10 @@ def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1):
 
 
 def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
-    estimator = LinksClassifier()
+    estimator = LinksClassifier(sampling='predefined', init='normal_univariate')
     grid = {
         'alpha': [0.01, 0.1, 1, 10],
-        'gamma': ['auto'],
+        'gamma': [1e-4, 1e-3, 1e-2, 1e-1, 1],
         'kernel': ['rbf'],
         'beta': [0.1, 0.1, 1, 10],
         'delta': [0.1, 0.1, 1, 10]
@@ -131,7 +107,7 @@ def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1):
                           'Xu': Xu
                       },
                       refit=True,
-                      verbose=2,
+                      verbose=False,
                       n_jobs=n_jobs)
     gs.fit(X, y)
     return gs
@@ -173,33 +149,12 @@ if __name__ == '__main__':
 
     datafiles_toy = [
         r'data/diabetes_scale.libsvm',
-        r'data/australian_scale.libsvm',
         r'data/breast-cancer_scale.libsvm',
-        r'data/german.numer_scale.libsvm',
-        r'data/ionosphere_scale.libsvm',
-        r'data/liver-disorders_scale.libsvm',
-        r'data/heart_scale.libsvm',
     ]
 
 
-    # In[4]:
-
-    def loader(name):
-        from sklearn.datasets import load_svmlight_file
-        from scipy.sparse import issparse
-        filename = 'data/%s.libsvm' % name
-        if not name in globals():
-            X, y = load_svmlight_file(filename)
-            if issparse(X):
-                X = X.toarray()
-            globals()[name] = (X, y)
-        return globals()[name]
-
-
-    # In[5]:
-
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
-                             partial(loader, os.path.split(f)[-1].replace('.libsvm', '')))
+                             load_svmlight_file(f))
                             for f in datafiles_toy])
 
     parser = argparse.ArgumentParser(description='Model evaluation script')
@@ -211,21 +166,24 @@ if __name__ == '__main__':
     parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs, -1 for all')
 
-    parser.add_argument('--dir', type=str, default='data/',
+    parser.add_argument('--file', type=str, default='data/results_semi.csv',
                         help='folder to store results')
 
-    parser.add_argument('--plot', type=bool, default=False,
-                        help='folder to store results')
 
     estimators = [
-                     ('LinksClassifier-labels', train_labels),
+                     # ('LinksClassifier-labels', train_labels),
                      ('LinksClassifier-labels-links', train_labels_links),
                      ('LinksClassifier-labels-links-unlabeled', train_labels_links_unlabeled),
-                     ('LogisticRegression', train_labels_logit),
+                     # ('LogisticRegression', train_labels_logit),
 
                  ][::-1]
 
+    max_k = 50
+    cacher = CSVCacher(filename=args.file)
+
     args = parser.parse_args()
+
+
     for ds_name, loader in datasets.iteritems():
         X, y = loader()
         print(ds_name)
@@ -265,13 +223,13 @@ if __name__ == '__main__':
                 fig.set_size_inches(15, 10)
                 fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
 
-            #tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
+            # tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
 
             for (i_label, p_labels), (i_link, p_links) in \
                     itertools.product(enumerate(percent_labels_range),
                                       enumerate(percent_links_range)):
-                #tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
-                #tq.update(1)
+                # tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
+                # tq.update(1)
 
                 for i_split, (train, test) in enumerate(outer_cv):
                     if train_scores[i_label, i_link, i_split] != -1 and \
