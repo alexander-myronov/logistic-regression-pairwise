@@ -152,7 +152,7 @@ def task(context, **kwargs):
         best_params = {'alpha': best_params[0], 'gamma': best_params[1]}
         estimator_best = clone(estimator)
         estimator_best.set_params(**best_params)
-        estimator_best.verbose = True
+        #estimator_best.verbose = True
         print(context, 'fitting on full train set')
         estimator_best.fit(X_tr, y_tr, X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
 
