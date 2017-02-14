@@ -2,7 +2,6 @@ import traceback
 from scipy.sparse import issparse
 from sklearn import clone
 import sys
-from label_link_tradeoff import plot_tradeoff
 from new_experiment_runner.cacher import CSVCacher
 
 __author__ = 'myronov'
@@ -153,7 +152,7 @@ def task(context, **kwargs):
         estimator_best = clone(estimator)
         estimator_best.set_params(**best_params)
         #estimator_best.verbose = True
-        print(context, 'fitting on full train set')
+        # print(context, 'fitting on full train set')
         estimator_best.fit(X_tr, y_tr, X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
 
         test_score = accuracy_scorer(estimator_best, X[test], y[test])

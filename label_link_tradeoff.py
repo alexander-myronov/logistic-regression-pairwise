@@ -1,3 +1,12 @@
+import traceback
+from scipy.sparse import issparse
+from sklearn import clone
+import sys
+
+from new_experiment_runner.cacher import CSVCacher
+
+__author__ = 'myronov'
+
 # coding: utf-8
 
 # In[1]:
@@ -13,46 +22,46 @@ import itertools
 from collections import OrderedDict
 from functools import partial
 
-from sklearn.datasets import load_svmlight_file
+from sklearn.datasets import load_svmlight_file, make_circles, make_moons
 
 from links import LinksClassifier
 from logit import LogisticRegressionPairwise, LogisticRegression
 
-from sklearn.model_selection import ParameterGrid, StratifiedShuffleSplit, GridSearchCV
+from sklearn.model_selection import ParameterGrid, StratifiedShuffleSplit, GridSearchCV, \
+    fit_grid_point, ShuffleSplit
 
 from tqdm import tqdm as tqdm
 
-estimators = [
-    ('LinksClassifier',
-     LinksClassifier(sampling='predefined'),
-     {
-         'alpha': [0.01, 0.1, 1, 10],
-         'gamma': ['auto'],
-         'kernel': ['rbf'],
-         'gamma': [0.1, 0.1, 1, 10]
-     }),
-]
+from start_sensitivity import split_dataset
+import multiprocess as mp
+
+links_grid = {
+    'alpha': [0.01, 0.1, 1, 10],
+    'gamma': ['auto'],
+    'kernel': ['rbf'],
+    'beta': [0.1, 0.1, 1, 10]
+}
 
 
-def sample_links_random(X, y, percent_links):
-    # np.random.seed(44)
-    num = int(len(y) * percent_links)
+def train_labels_logit(X, y, X1, X2, z, Xu, n_jobs=1):
+    estimator = LogisticRegression(alpha=1)
+    grid = {
+        'kernel': ['rbf', ],
+        'alpha': [0.1, 1, 10],
+        'gamma': ['auto']
+    }
+    full_index = np.ones(len(X), dtype=bool)
 
-    choice1 = np.random.choice(len(y), size=num, replace=True)
-    X1 = X[choice1]
-    choice2 = np.random.choice(len(y), size=num, replace=True)
-    X2 = X[choice2]
-    z = (y[choice1] == y[choice2]).astype(float)
-
-    return X1, X2, z
-
-
-def split_dataset(X, y, percent_labels, percent_links):
-    X1, X2, z = sample_links_random(X, y, percent_links)
-    n_labels = int(len(y) * percent_labels)
-    labels_choice = \
-        next(StratifiedShuffleSplit(n_splits=1, train_size=percent_labels).split(X, y))[0]
-    return X[labels_choice], y[labels_choice], X1, X2, z
+    gs = GridSearchCV(estimator=estimator,
+                      param_grid=grid,
+                      cv=[(full_index, full_index)],
+                      scoring=accuracy_scorer,
+                      fit_params={
+                      },
+                      refit=True,
+                      n_jobs=n_jobs)
+    gs.fit(X, y)
+    return gs
 
 
 def accuracy_scorer(estimator, X, y):
@@ -64,71 +73,119 @@ def accuracy_scorer(estimator, X, y):
     return accuracy_score(y_true, y_pred)
 
 
-def plot_scores(ax, scores, vmin, vmax, range_x, range_y):
-    r = ax.imshow(scores.mean(axis=2), interpolation='nearest',
-                  cmap=plt.cm.hot,
-                  vmax=1,
-                  vmin=vmin, origin='lower')
-    ax.set_xticks(np.arange(len(range_x)))
-    ax.set_xticklabels(range_x)
-    ax.set_yticks(np.arange(len(range_y)))
-    ax.set_yticklabels(range_y)
-    return r
+def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2):
+    y_split = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size).split(X, y)
+    z_split = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size).split(X1, z)
+    u_split = ShuffleSplit(n_splits=n_splits, test_size=test_size).split(Xu, np.arange(len(Xu)))
+    for (tr_y, te_y), (tr_z, te_z), (tr_u, te_u) in itertools.izip(y_split, z_split, u_split):
+        yield (tr_y, tr_z, tr_u), (te_y, te_z, te_u)
 
 
-def plot_tradeoff(train_scores, test_scores, range_x, range_y):
-    fig, ax = plt.subplots(ncols=2)
-    vmin = 0  # min(train_scores.min(), test_scores.min())
-    r = plot_scores(ax[0], train_scores, vmin=vmin, vmax=1,
-                    range_x=range_x,
-                    range_y=range_y)
-    ax[0].set_title('train score')
+def task(context, **kwargs):
+    try:
+        X = kwargs.pop('X')
+        y = kwargs.pop('y')
+        train = kwargs.pop('train')
+        test = kwargs.pop('test')
+        X_train, y_train = X[train], y[train]
 
-    r = plot_scores(ax[1], test_scores, vmin=vmin, vmax=1,
-                    range_x=range_x,
-                    range_y=range_y)
-    ax[1].set_title('test score')
+        X_tr, y_tr, X1_tr, X2_tr, z_tr, Xu_tr = split_dataset(
+            X_train, y_train,
+            percent_labels=context['percent_labels'],
+            percent_links=context['percent_links'],
+            percent_unlabeled=context['percent_unlabeled'])
 
-    fig.subplots_adjust(right=0.8)
-    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
-    fig.colorbar(r, cax=cbar_ax)
-    return fig
+        estimator = LinksClassifier(sampling='predefined',
+                                    init='normal',
+                                    verbose=False,
+                                    solver='tnc',
+                                    kernel='rbf',
+                                    beta=context['beta'],
+                                    delta=context['delta'])
+        # if len(cacher.get(context) > 1):
+        #     continue
+
+        grid = {
+            'alpha': [0.01, 0.1, 1, 10, 100],
+            'gamma': [0.01, 0.05, 0.1, 0.5, 1],
+            # 'kernel': ['rbf'],
+        }
+
+        gs_cacher = CSVCacher(filename=None)
+        gs_context = {}
+
+        for params in ParameterGrid(grid):
+            gs_context.update(params)
+
+            for i_inner_split, ((tr_y, tr_z, tr_u), (te_y, tr_z, tr_u)) \
+                    in enumerate(
+                split_datasets(
+                    X_tr,
+                    y_tr,
+                    X1_tr,
+                    X2_tr,
+                    z_tr,
+                    Xu_tr,
+                    n_splits=context['gs_splits'],
+                    test_size=context['gs_test_size'])):
+                gs_context['gs_split'] = i_inner_split
+
+                # print(gs_context)
+
+                estimator0 = clone(estimator)
+                estimator0.set_params(**params)
+                estimator0.fit(X_tr[tr_y],
+                               y_tr[tr_y],
+                               X1=X1_tr[tr_z],
+                               X2=X2_tr[tr_z],
+                               z=z_tr[tr_z],
+                               Xu=Xu_tr[tr_u])
+                score = accuracy_scorer(estimator0, X_tr[te_y], y_tr[te_y])
+
+                gs_cacher.set(gs_context, {'score': score})
+
+        gs_df = gs_cacher.dataframe
+        grouped = gs_df['score'].groupby(by=[gs_df['alpha'], gs_df['gamma']]).mean()
+        best_params = grouped.argmax()
+        cv_score = grouped.ix[best_params]
+
+        best_params = {'alpha': best_params[0], 'gamma': best_params[1]}
+        estimator_best = clone(estimator)
+        estimator_best.set_params(**best_params)
+        #estimator_best.verbose = True
+        # print(context, 'fitting on full train set')
+        estimator_best.fit(X_tr, y_tr, X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
+
+        test_score = accuracy_scorer(estimator_best, X[test], y[test])
+
+        return context, {
+            'alpha': best_params['alpha'],
+            'gamma': best_params['gamma'],
+            'cv_score': cv_score,
+            'test_score': test_score
+        }
+    except Exception as e:
+        e_t, e_v, e_tb = sys.exc_info()
+        e_tb = traceback.format_tb(e_tb)
+        return context, (e_t, e_v, e_tb)
 
 
 if __name__ == '__main__':
 
-    # In[3]:
+    mp.freeze_support()
 
     datafiles_toy = [
         r'data/diabetes_scale.libsvm',
-        r'data/australian_scale.libsvm',
         r'data/breast-cancer_scale.libsvm',
-        r'data/german.numer_scale.libsvm',
+        r'data/australian_scale.libsvm',
         r'data/ionosphere_scale.libsvm',
-        r'data/liver-disorders_scale.libsvm',
-        r'data/heart_scale.libsvm',
     ]
 
-
-    # In[4]:
-
-    def loader(name):
-        from sklearn.datasets import load_svmlight_file
-        from scipy.sparse import issparse
-        filename = 'data/%s.libsvm' % name
-        if not name in globals():
-            X, y = load_svmlight_file(filename)
-            if issparse(X):
-                X = X.toarray()
-            globals()[name] = (X, y)
-        return globals()[name]
-
-
-    # In[5]:
-
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
-                             partial(loader, os.path.split(f)[-1].replace('.libsvm', '')))
+                             load_svmlight_file(f))
                             for f in datafiles_toy])
+    datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
+    datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
     parser = argparse.ArgumentParser(description='Model evaluation script')
     parser.add_argument('--cv_folds', type=int, default=3,
@@ -136,101 +193,89 @@ if __name__ == '__main__':
     parser.add_argument('--cv_test_size', type=float, default=0.2,
                         help='cross validation test size')
 
+    parser.add_argument('--gs_folds', type=int, default=3,
+                        help='cross validation number of folds')
+    parser.add_argument('--gs_test_size', type=float, default=0.2,
+                        help='cross validation test size')
+
     parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs, -1 for all')
 
-    parser.add_argument('--dir', type=str, default='data/',
-                        help='folder to store results')
-
-    parser.add_argument('--plot', type=bool, default=False,
+    parser.add_argument('--file', type=str, default='data/results_semi.csv',
                         help='folder to store results')
 
     args = parser.parse_args()
-    for ds_name, loader in datasets.iteritems():
-        X, y = loader()
-        print(ds_name)
-        ds_dir = os.path.join(args.dir, ds_name)
-        for est_name, estimator, grid in estimators:
-            print(est_name)
-            est_dir = os.path.join(ds_dir, est_name)
-            if not os.path.exists(est_dir):
-                os.makedirs(est_dir)
-            percent_labels_range = [0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
-            percent_links_range = [0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3]
-            outer_cv = list(
-                StratifiedShuffleSplit(n_splits=args.cv_folds,
-                                       test_size=args.cv_test_size,
-                                       random_state=42).split(X, y))
+    cacher = CSVCacher(filename=args.file)
 
-            train_scores_filename = os.path.join(est_dir, 'train_scores.npy')
-            test_scores_filename = os.path.join(est_dir, 'test_scores.npy')
+    context = {'gs_test_size': args.gs_test_size,
+               'gs_splits': args.gs_folds,
+               'cv_test_size': args.cv_test_size,
+               'cv_splits': args.cv_folds,
+               'cv_random_state': 42}
 
-            if os.path.isfile(train_scores_filename):
-                train_scores = np.load(train_scores_filename)
-            else:
-                train_scores = np.full(
-                    shape=(len(percent_labels_range), len(percent_links_range), len(outer_cv)),
-                    fill_value=-1, dtype=float)
-            if os.path.isfile(train_scores_filename):
-                test_scores = np.load(train_scores_filename)
-            else:
-                test_scores = np.full(
-                    shape=(len(percent_labels_range), len(percent_links_range), len(outer_cv)),
-                    fill_value=-1, dtype=float)
+    percent_labels_range = np.linspace(0.1, 0.3, 15)
+    percent_links_range = np.linspace(0.1, 0.3, 15)
+    percent_unlabeled_range = [0.2]
 
-            if args.plot:
-                fig = plot_tradeoff(train_scores, test_scores)
-                fig.set_size_inches(15, 10)
-                fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
-
-            tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
-
-            for (i_label, p_labels), (i_link, p_links) in \
-                    itertools.product(enumerate(percent_labels_range),
-                                      enumerate(percent_links_range)):
-                tq.set_description('labels=%.2f, links=%.2f' % (p_labels, p_links))
-                tq.update(1)
-
-                for i_split, (train, test) in enumerate(outer_cv):
-                    if train_scores[i_label, i_link, i_split] != -1 and \
-                                    test_scores[i_label, i_link, i_split] != -1:
-                        continue
-                    X_train, y_train, X1_train, X2_train, z_train = \
-                        split_dataset(X[train],
-                                      y[train],
-                                      percent_labels=p_labels,
-                                      percent_links=p_links)
-
-                    full_index = np.ones(len(X_train), dtype=bool)
-
-                    gs = GridSearchCV(estimator=estimator,
-                                      param_grid=grid,
-                                      cv=[(full_index, full_index)], scoring=accuracy_scorer,
-                                      fit_params={
-                                          'X1': X1_train,
-                                          'X2': X2_train,
-                                          'z': z_train,
-                                          'Xu': np.zeros(shape=(0, X.shape[1]))},
-                                      refit=True,
-                                      n_jobs=args.jobs)
-                    gs.fit(X_train, y_train)
-                    tr_score = gs.best_score_
-                    # print('tr score', tr_score)
-                    train_scores[i_label, i_link, i_split] = tr_score
-
-                    te_score = accuracy_scorer(gs, X[test], y[test])
-                    # print('te score', te_score)
-                    test_scores[i_label, i_link, i_split] = te_score
-
-                    np.save(train_scores_filename, train_scores)
-                    np.save(test_scores_filename, test_scores)
-
-            if args.plot:
-                fig = plot_tradeoff(train_scores, test_scores)
-                fig.set_size_inches(15, 10)
-                fig.savefig(os.path.join(est_dir, 'tradeoff.png'), bbox_inches='tight', dpi=300)
-                tq = tqdm(total=len(percent_links_range) * len(percent_labels_range), desc='')
+    beta_range = [0.7]
+    delta_range = [0.4]
 
 
+    def task_generator():
+        for ds_name, (X, y) in datasets.iteritems():
+            if issparse(X):
+                X = X.toarray()
+            context['dataset'] = ds_name
 
-# In[ ]:
+            for beta, delta in itertools.product(beta_range, delta_range):
+                context['beta'] = beta
+                context['delta'] = delta
+
+                for (i_label, p_labels), (i_link, p_links), (i_unlableled, p_unlabeled) in \
+                        itertools.product(enumerate(percent_labels_range),
+                                          enumerate(percent_links_range),
+                                          enumerate(percent_unlabeled_range)):
+                    context['percent_labels'] = p_labels
+                    context['percent_links'] = p_links
+                    context['percent_unlabeled'] = p_unlabeled
+
+                    outer_cv = StratifiedShuffleSplit(n_splits=args.cv_folds,
+                                                      test_size=args.cv_test_size,
+                                                      random_state=context[
+                                                          'cv_random_state']).split(X, y)
+                    for i_split, (train, test) in enumerate(outer_cv):
+                        context['cv_split'] = i_split
+                        if len(cacher.get(context)) == 0:
+                            yield dict(context), {
+                                'X': X,
+                                'y': y,
+                                'train': train,
+                                'test': test
+                            }
+
+
+    if args.jobs == 1:
+        mapper = itertools.imap
+    else:
+        mapper = mp.Pool(mp.cpu_count() if args.jobs == -1 else args.jobs).imap_unordered
+
+    tasks = list(task_generator())
+    tq = tqdm(total=len(tasks))
+
+
+    def map_f(context_kwds):
+        context, kwds = context_kwds
+        from label_link_tradeoff import task
+        return task(context, **kwds)
+
+
+    for context, result in mapper(map_f, tasks):
+
+        if len(result) == 3 and isinstance(result[1], Exception):
+            print(result[0])
+            print(result[1])
+            print('\n'.join(result[2]))
+            continue
+        cacher.set(context, result)
+        cacher.save()
+        tq.update()
