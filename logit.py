@@ -30,7 +30,7 @@ class LogisticRegression(BaseEstimator):
         self.X = None
         self.gamma = gamma
         self.kernel = kernel
-        #self.kernel_f = self.kernel_dict[kernel]
+        # self.kernel_f = self.kernel_dict[kernel]
 
     def kernel_f(self, X):
         if self.kernel == 'linear':
@@ -49,7 +49,7 @@ class LogisticRegression(BaseEstimator):
     def linear_kernel(self, X):
         return X
 
-    def fit(self, X, y):
+    def fit(self, X, y, **kwargs):
 
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         self.X = X
@@ -77,14 +77,15 @@ class LogisticRegression(BaseEstimator):
         #                                           disp=1)
 
         try:
-            res = scipy.optimize.fmin_ncg(f,
+            res = scipy.optimize.fmin_tnc(f,
                                           self.beta,
                                           # approx_grad=True,
                                           fprime=fprime,
                                           # maxfun=10000,
-                                          maxiter=10000,
+                                          maxfun=150,
                                           disp=0,
-                                          retall=False)
+                                          ftol=1e-4)
+            res = res[0]
         except:
             res = self.beta
         # last_loss = f(res)
@@ -465,7 +466,8 @@ class LogisticRegressionPairwise(BaseEstimator):
 
 
 def plot_moons(estimator):
-    X, y = make_circles(n_samples=400, noise=0.1)#make_moons(n_samples=400, noise=0.10, random_state=0)
+    X, y = make_circles(n_samples=400,
+                        noise=0.1)  # make_moons(n_samples=400, noise=0.10, random_state=0)
 
     X = StandardScaler().fit_transform(X)
 
