@@ -61,10 +61,10 @@ def train_labels(X, y, X1, X2, z, Xu, n_jobs=1):
 
 
 def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1, kernel='rbf'):
-    estimator = LinksClassifier(sampling='predefined', init='zeros', verbose=False)
+    estimator = LinksClassifier(sampling='predefined', init='zeros', verbose=False, solver='tnc')
     grid = {
-        # 'alpha': [0.01, 0.1, 1, 10],
-        'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2],
+        #'alpha': [0.01, 0.1, 1, 10],
+        'gamma': [0.01, 0.05, 0.1, 0.5, 1],
         'kernel': [kernel],
         # 'delta': [0.1, 0.1, 1, 10]
     }
@@ -87,10 +87,10 @@ def train_labels_links(X, y, X1, X2, z, Xu, n_jobs=1, kernel='rbf'):
 
 
 def train_labels_links_unlabeled(X, y, X1, X2, z, Xu, n_jobs=1, kernel='rbf'):
-    estimator = LinksClassifier(sampling='predefined', init='zeros', verbose=False)
+    estimator = LinksClassifier(sampling='predefined', init='zeros', verbose=False, solver='tnc')
     grid = {
-        # 'alpha': [0.01, 0.1, 1, 10],
-        'gamma': [0.05, 0.1, 0.5, 1, 2],
+        #'alpha': [0.01, 0.1, 1, 10],
+        'gamma': [0.01, 0.05, 0.1, 0.5, 1],
         'kernel': [kernel],
         'delta': [0.01, 0.1, 0.3, 0.6]
     }
@@ -149,8 +149,8 @@ if __name__ == '__main__':
 
     datafiles_toy = [
         r'data/diabetes_scale.libsvm',
-        # r'data/breast-cancer_scale.libsvm',
-        # r'data/australian_scale.libsvm',
+        r'data/breast-cancer_scale.libsvm',
+        r'data/australian_scale.libsvm',
         # r'data/ionosphere_scale.libsvm',
     ]
 

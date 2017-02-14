@@ -141,7 +141,7 @@ class LinksClassifier(BaseEstimator):
             if self.verbose:
                 print('loss: traditional=%.3f, links=%.3f, norm=%.3f, unsup=%.3f' % \
                       (tr_loss, l_loss, n_loss, u_loss))
-            if time.time() - start_time > 40:
+            if time.time() - start_time > 80:
                 result_v = v
                 raise Exception('timeout')
 
@@ -164,7 +164,8 @@ class LinksClassifier(BaseEstimator):
                                               self.v,
                                               # approx_grad=True,
                                               fprime=fprime,
-                                              #maxiter=100,
+                                              maxfun=100,
+                                              ftol=1e-4,
                                               disp=0,
                                               callback=cb,
                                               #avextol=0.001,
