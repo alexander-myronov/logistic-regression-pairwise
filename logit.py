@@ -82,10 +82,22 @@ class LogisticRegression(BaseEstimator):
                                           # approx_grad=True,
                                           fprime=fprime,
                                           # maxfun=10000,
-                                          maxfun=150,
+                                          maxfun=100000,
                                           disp=0,
                                           ftol=1e-4)
             res = res[0]
+            # res = scipy.optimize.fmin_ncg(f,
+            #                               self.beta,
+            #                               # approx_grad=True,
+            #                               fprime=fprime,
+            #                               # maxfun=10000,
+            #                               maxiter=150,
+            #                               disp=0,
+            #                               avextol=1e-4,
+            #                               retall=0)
+
+
+
         except:
             res = self.beta
         # last_loss = f(res)
@@ -101,7 +113,7 @@ class LogisticRegression(BaseEstimator):
     def predict_proba(self, X):
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         probs = self.predict_proba_(X, self.beta)
-        probs = self.sigmoid(probs)
+        #probs = self.sigmoid(probs)
         return np.vstack([1 - probs, probs]).T
 
     @staticmethod
@@ -466,10 +478,12 @@ class LogisticRegressionPairwise(BaseEstimator):
 
 
 def plot_moons(estimator):
-    X, y = make_circles(n_samples=400,
+    X, y = make_moons(n_samples=400,
                         noise=0.1)  # make_moons(n_samples=400, noise=0.10, random_state=0)
+    #y[y==0] = -1
 
-    X = StandardScaler().fit_transform(X)
+    #X = StandardScaler().fit_transform(X)
+
 
     X_train, X_test, y_train, y_test = \
         train_test_split(X, y, test_size=.7, random_state=42)
@@ -506,37 +520,37 @@ def plot_moons(estimator):
 
 
 def compare_moons():
-    plot_moons(
-        # GridSearchCV(1
-        LinksClassifier(alpha=2,
-                        beta=0.01,
-                        kernel='rbf',
-                        gamma=3,
-                        verbose=True,
-                        percent_pairs=0.35,
-                        sampling='max_kdist'))
+    # plot_moons(
+    #     # GridSearchCV(1
+    #     LinksClassifier(alpha=2,
+    #                     beta=0.01,
+    #                     kernel='rbf',
+    #                     gamma=3,
+    #                     verbose=True,
+    #                     percent_pairs=0.35,
+    #                     sampling='max_kdist'))
 
     plot_moons(
-        # GridSearchCV(
+        GridSearchCV(
         LogisticRegression(alpha=0.01,
                            kernel='rbf',
                            gamma=3),
-        # {
-        #     'alpha': [1e-5, 1e-4, 1e-3],
-        #     #'gamma': [0.1, 0.3, 0.5, 0.9]
-        # },
-        # cv=5,
-        # verbose=True,
-        # scoring=make_scorer(accuracy_score))
+        {
+            'alpha': [1e-5, 1e-4, 1e-3],
+            'gamma': [0.1, 0.3, 0.5, 0.9]
+        },
+        cv=5,
+        verbose=True,
+        scoring=make_scorer(accuracy_score))
     )
     # plt.show(block=True)
-    plot_moons(
-        LogisticRegressionPairwise(alpha=0.01,
-                                   mu=1,
-                                   kernel='rbf',
-                                   gamma=3,
-                                   verbose=True,
-                                   percent_pairs=0.15))
+    # plot_moons(
+    #     LogisticRegressionPairwise(alpha=0.01,
+    #                                mu=1,
+    #                                kernel='rbf',
+    #                                gamma=3,
+    #                                verbose=True,
+    #                                percent_pairs=0.15))
 
 
     # LogisticRegression(alpha=1,  kernel='rbf'))
@@ -544,6 +558,30 @@ def compare_moons():
 
 
 if __name__ == '__main__':
+
+    def accuracy_scorer(estimator, X, y):
+
+        y_pred = estimator.predict(X)
+        y_true = np.copy(y)
+        y_true[y_true == -1] = 0
+        return accuracy_score(y_true, y_pred)
+
+    plot_moons(
+        GridSearchCV(
+        LogisticRegression(alpha=0.01,
+                           gamma=3),
+        {
+            'kernel':['rbf'],
+            'alpha': [1e-5, 1e-4, 1e-3],
+            'gamma': [0.1, 0.3, 0.5, 0.9]
+        },
+        cv=5,
+        verbose=2,
+        scoring=accuracy_scorer)
+    )
+    plt.show()
+
+    exit()
 
     # X, y = make_classification(n_samples=80,
     #                            n_features=20,
