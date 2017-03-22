@@ -12,7 +12,7 @@ class CSVCacher(object):
         try:
             self.dataframe = pd.read_csv(filename)
         except Exception as e:
-            self.dataframe = pd.DataFrame(index=pd.RangeIndex())
+            self.dataframe = pd.DataFrame(index=pd.RangeIndex(0))
 
     def __len__(self):
         return len(self.dataframe)
