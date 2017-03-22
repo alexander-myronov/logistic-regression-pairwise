@@ -212,6 +212,7 @@ class LogisticRegressionPairwise(BaseEstimator):
 
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         self.y = np.copy(y)
+        assert len(np.unique(y)) == 2
         self.y[self.y == 0] = -1
 
         self.X1, self.X2, z = self.sampling_f(X, y, **kwargs)
@@ -443,26 +444,26 @@ class LogisticRegressionPairwise(BaseEstimator):
                - beta / max(len(z), 1) * ploss_grad \
                + 2 * norm_loss_grad
 
-    def get_params(self, deep=True):
-        return {'alpha': self.alpha,
-                'beta': self.beta,
-                'percent_pairs': self.percent_pairs,
-                'kernel': self.kernel,
-                'gamma': self.gamma,
-                'sampling': self.sampling,
-                'verbose': self.verbose,
-                'max_iter': self.max_iter}
-
-    def set_params(self, **params):
-        self.alpha = params.pop('alpha', self.alpha)
-        self.beta = params.pop('beta', self.beta)
-        self.percent_pairs = params.pop('percent_pairs', self.percent_pairs)
-        self.gamma = params.pop('gamma', self.gamma)
-        self.kernel = params.pop('kernel', self.kernel)
-        self.sampling = params.pop('sampling', self.sampling)
-        self.max_iter = params.pop('max_iter', self.max_iter)
-        self.verbose = params.pop('verbose', self.verbose)
-        return self
+    # def get_params(self, deep=True):
+    #     return {'alpha': self.alpha,
+    #             'beta': self.beta,
+    #             'percent_pairs': self.percent_pairs,
+    #             'kernel': self.kernel,
+    #             'gamma': self.gamma,
+    #             'sampling': self.sampling,
+    #             'verbose': self.verbose,
+    #             'max_iter': self.max_iter}
+    #
+    # def set_params(self, **params):
+    #     self.alpha = params.pop('alpha', self.alpha)
+    #     self.beta = params.pop('beta', self.beta)
+    #     self.percent_pairs = params.pop('percent_pairs', self.percent_pairs)
+    #     self.gamma = params.pop('gamma', self.gamma)
+    #     self.kernel = params.pop('kernel', self.kernel)
+    #     self.sampling = params.pop('sampling', self.sampling)
+    #     self.max_iter = params.pop('max_iter', self.max_iter)
+    #     self.verbose = params.pop('verbose', self.verbose)
+    #     return self
 
 
 def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42):

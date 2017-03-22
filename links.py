@@ -101,8 +101,9 @@ class LinksClassifier(BaseEstimator):
         self.n_classes = len(np.unique(y))
         self.fullX = np.vstack([X, self.X1, self.X2, self.Xu])
         self.K = self.kernel_f(self.fullX, self.fullX)
+        assert np.sum(y == -1) == 0
         self.y = np.copy(y)
-        self.y[self.y == -1] = 0
+        # self.y[self.y == -1] = 0
 
         self.v = self.init_f()
 
@@ -111,9 +112,6 @@ class LinksClassifier(BaseEstimator):
 
         fprime = partial(self.loss_grad, X, y, self.X1, self.X2, self.z, self.Xu,
                          alpha=self.alpha, beta=self.beta, delta=self.delta)
-
-        fprime_lloss = partial(self.links_loss_grad, X, self.X1, self.X2, self.z)
-        f_lloss = partial(self.links_loss, self.X1, self.X2, self.z)
 
         for _ in xrange(kwargs.pop('n_gradient_checks', 0)):
             v_test = np.random.normal(size=self.v.ravel().shape)
