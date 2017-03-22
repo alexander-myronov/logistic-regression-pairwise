@@ -1,3 +1,4 @@
+from __future__ import division, print_function
 from collections import OrderedDict
 from functools import partial
 from warnings import warn
@@ -11,6 +12,7 @@ from sklearn.base import BaseEstimator
 from sklearn.datasets import load_svmlight_file, make_moons, make_circles, \
     make_multilabel_classification, make_classification
 from sklearn.metrics import roc_auc_score, accuracy_score, make_scorer
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import cross_val_score, GridSearchCV, StratifiedKFold, learning_curve, \
     train_test_split
 from sklearn.pipeline import make_pipeline
@@ -113,7 +115,7 @@ class LogisticRegression(BaseEstimator):
     def predict_proba(self, X):
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         probs = self.predict_proba_(X, self.beta)
-        #probs = self.sigmoid(probs)
+        # probs = self.sigmoid(probs)
         return np.vstack([1 - probs, probs]).T
 
     @staticmethod
@@ -158,15 +160,18 @@ class LogisticRegression(BaseEstimator):
 
 
 class LogisticRegressionPairwise(BaseEstimator):
-    def __init__(self, alpha=1, mu=1, percent_pairs=0.5, kernel='linear', gamma='auto',
-                 verbose=False):
-        self.beta = None
+    def __init__(self, alpha=1, beta=1, percent_pairs=0.5, kernel='linear', gamma='auto',
+                 sampling='random',
+                 verbose=False,
+                 max_iter=100):
+        self.wbeta = None  # weights
         self.alpha = alpha
-        self.mu = mu
+        self.beta = beta
         self.percent_pairs = percent_pairs
         self.gamma = gamma
         self.kernel = kernel
-
+        self.sampling = sampling
+        self.max_iter = max_iter
         self.verbose = verbose
 
     def kernel_f(self, X, X_prim):
@@ -186,73 +191,84 @@ class LogisticRegressionPairwise(BaseEstimator):
         dist = cdist(X, X_prim, metric='sqeuclidean')
         return np.exp(-gamma * dist)
 
-    def fit(self, X, y):
+    def sampling_f(self, X, y, **kwargs):
+        if self.sampling == 'random':
+            X1, X2, z = self.sample_pairs_random(X, y)
+        elif self.sampling == 'max_kdist':
+            X1, X2, z = self.sample_pairs_max_kdist(X, y)
+        elif self.sampling == 'predefined':
+            X1 = kwargs['X1']
+            X2 = kwargs['X2']
+            z = kwargs['z']
+
+            if X1.shape[1] == X.shape[1] - 1:
+                X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
+            if X2.shape[1] == X.shape[1] - 1:
+                X2 = np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
+
+        return X1, X2, z
+
+    def fit(self, X, y, **kwargs):
 
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
-        y = np.array(y)
-        y[y == 0] = -1
+        self.y = np.copy(y)
+        self.y[self.y == 0] = -1
 
-        X1, X2, z = self.sample_pairs_max_kdist(X, y)
-        self.X1 = X1
-        self.X2 = X2
+        self.X1, self.X2, z = self.sampling_f(X, y, **kwargs)
+        self.z = np.copy(z)
+        self.z[self.z == 0] = -1
         self.X = X
 
         X_k = self.kernel_f(X, X)
-        X1_k = self.kernel_f(X1, X1)
-        X2_k = self.kernel_f(X2, X2)
-        self.beta = np.zeros(X_k.shape[1])
+        X1_k = self.kernel_f(self.X1, self.X1)
+        X2_k = self.kernel_f(self.X2, self.X2)
+        self.wbeta = np.zeros(X_k.shape[1])
         if self.kernel != 'linear':
-            self.beta1 = np.zeros(X1_k.shape[1])
-            self.beta2 = np.zeros(X2_k.shape[1])
+            self.wbeta1 = np.zeros(X1_k.shape[1])
+            self.wbeta2 = np.zeros(X2_k.shape[1])
         else:
-            self.beta1 = np.zeros(shape=0)
-            self.beta2 = np.zeros(shape=0)
+            raise NotImplementedError()
+            self.wbeta1 = np.zeros(shape=0)
+            self.wbeta2 = np.zeros(shape=0)
 
-        self.fullX = np.vstack([X, X1, X2])
+        self.fullX = np.vstack([X, self.X1, self.X2])
         self.K = self.kernel_f(self.fullX, self.fullX)
 
         # EM
         prev_loss = 0
         loss = 0
-        n_iter = 25
-        full_beta = np.concatenate([self.beta, self.beta1, self.beta2])
+        n_iter = self.max_iter
+        full_beta = np.concatenate([self.wbeta, self.wbeta1, self.wbeta2])
 
-        if self.kernel == 'linear':
-            estep_f = self.estep
-            loss_f = self.loss_split_other
-        else:
-            estep_f = self.estep
-            loss_f = self.loss_split_other
+        estep_f = self.estep
+        loss_f = self.loss_split_other
         while n_iter > 0:
 
             prev_loss = loss
 
-            E_z1, E_z2 = estep_f(X1, X2, z, full_beta)
+            E_z1, E_z2 = estep_f(self.X1, self.X2, self.z, full_beta)
 
-            f = partial(loss_f, X, y, X1, X2, z, E_z1, E_z2,
+            f = partial(loss_f, X, y, self.X1, self.X2, self.z, E_z1, E_z2,
                         alpha=self.alpha,
-                        mu=self.mu)
+                        beta=self.beta)
 
-            fprime = partial(self.loss_split_grad, X, y, X1, X2, z, E_z1, E_z2,
+            fprime = partial(self.loss_split_grad, X, y, self.X1, self.X2, self.z, E_z1, E_z2,
                              alpha=self.alpha,
-                             mu=self.mu)
+                             beta=self.beta)
 
-            # if self.verbose:
-            #     err = scipy.optimize.check_grad(f, fprime, full_beta)
-            #     print('gradient error: %f' % err)
+            if self.verbose:
+                err = scipy.optimize.check_grad(f, fprime, full_beta)
+                print('gradient error: %f' % err)
 
-            opt = scipy.optimize.fmin_ncg(f,
+            opt = scipy.optimize.fmin_tnc(f,
                                           full_beta,
-                                          avextol=1e-4,
                                           fprime=fprime,
-                                          # maxfun=10000,
-                                          maxiter=1000,
-                                          # maxls=100,
-                                          full_output=1,
+                                          maxfun=500,
+                                          ftol=1e-6,
                                           disp=0
                                           )
             full_beta = opt[0]
-            loss = opt[1]
+            loss = f(full_beta)
             if np.abs(prev_loss - loss) < 1e-5:
                 break
 
@@ -262,7 +278,7 @@ class LogisticRegressionPairwise(BaseEstimator):
         if n_iter == 0 and np.abs(prev_loss - loss) >= 1e-5:
             # warn
             pass
-        self.beta, self.beta1, self.beta2 = self.split_beta(full_beta)
+        self.wbeta, self.wbeta1, self.wbeta2 = self.split_beta(full_beta)
         return self
 
     def estep(self, X1, X2, z, full_beta):
@@ -287,7 +303,7 @@ class LogisticRegressionPairwise(BaseEstimator):
         return np.round(probs[:, 1], 0).astype(int)
 
     def predict_proba(self, X):
-        full_beta = np.concatenate([self.beta, self.beta1, self.beta2])
+        full_beta = np.concatenate([self.wbeta, self.wbeta1, self.wbeta2])
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         probs = self.predict_proba_(X, full_beta)
         probs = self.sigmoid(probs)
@@ -361,10 +377,11 @@ class LogisticRegressionPairwise(BaseEstimator):
         return X1, X2, z
 
     def split_beta(self, full_beta):
-        beta, beta1, beta2 = np.split(full_beta, [len(self.beta), len(self.beta) + len(self.beta1)])
+        beta, beta1, beta2 = np.split(full_beta,
+                                      [len(self.wbeta), len(self.wbeta) + len(self.wbeta1)])
         return beta, beta1, beta2
 
-    def loss_split_other(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, mu=1):
+    def loss_split_other(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, beta=1):
         # full_X = self.fullX
         # K = self.kernel_f(full_X, full_X)
 
@@ -379,11 +396,14 @@ class LogisticRegressionPairwise(BaseEstimator):
                                    (1 + np.exp(z * np.dot(Kl2, full_beta)))) + \
                 E_z2 * -1 * np.log((1 + np.exp(-np.dot(Kl1, full_beta))) * \
                                    (1 + np.exp(-z * np.dot(Kl2, full_beta))))
-        norm_loss = -np.dot(full_beta.T, full_beta)
         ploss = ploss.mean()
-        return - (lloss + mu * ploss + alpha * norm_loss)
 
-    def loss_split_grad(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, mu=1):
+        norm_loss = np.dot(full_beta.T, full_beta)
+
+        return - (alpha / max(len(y), 1) * lloss + beta / max(len(z), 1) * ploss - norm_loss)
+        # return - lloss - beta * ploss - alpha * norm_loss
+
+    def loss_split_grad(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, beta=1):
         # full_X = self.fullX
         # K = self.kernel_f(full_X, full_X)
 
@@ -416,73 +436,83 @@ class LogisticRegressionPairwise(BaseEstimator):
         #                            (1 + np.exp(z * np.dot(Kl2, full_beta)))) + \
         #         E_z2 * -1 * np.log((1 + np.exp(-np.dot(Kl1, full_beta))) * \
         #                            (1 + np.exp(-z * np.dot(Kl2, full_beta))))
-        norm_loss_grad = -2 * full_beta
+        norm_loss_grad = full_beta
 
-        return - (lloss_grad + mu * ploss_grad + alpha * norm_loss_grad)
-
-    def loss_split_other2(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, mu=1):
-        # full_X = self.fullX
-        # K = self.kernel_f(full_X, full_X)
-        Kp, Kl1, Kl2 = np.split(self.K, [len(X), len(X) + len(X1)])
-        lloss = np.log(1 / (1 + np.exp(-y * self.sigmoid(np.dot(Kp, full_beta)))))
-        lloss = lloss.mean()
-        ploss = E_z1 * np.log(1 / (1 + np.exp(self.sigmoid(np.dot(Kl1, full_beta)))) * \
-                              1 / (1 + np.exp(z * self.sigmoid(np.dot(Kl1, full_beta))))) + \
-                E_z2 * np.log(1 / (1 + np.exp(-self.sigmoid(np.dot(Kl1, full_beta)))) * \
-                              1 / (1 + np.exp(-z * self.sigmoid(np.dot(Kl1, full_beta)))))
-        norm_loss = -np.dot(full_beta.T, full_beta)
-        ploss = ploss.mean()
-        return - (lloss + mu * ploss + alpha * norm_loss)
-
-    def loss_split(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, mu=1):
-        beta, beta1, beta2 = self.split_beta(full_beta)
-        A = self.log_loss(X, y, beta, X_prim=X)
-        fx1 = self.predict_proba_(X1, beta1, X_prim=X1)
-        fx2 = self.predict_proba_(X2, beta2, X_prim=X2)
-        pairwise_loss = E_z1 * np.log(1 / (1 + np.exp(fx1)) * 1 / (1 + np.exp(z * fx2))) + \
-                        E_z2 * np.log(1 / (1 + np.exp(-fx1)) * 1 / (1 + np.exp(-z * fx2)))
-        pairwise_loss = pairwise_loss.mean()
-        norm_loss = -np.dot(full_beta.T, full_beta)
-        return - (A + mu * pairwise_loss + alpha * norm_loss)
-
-    def loss(self, X, y, X1, X2, z, E_z1, E_z2, full_beta, alpha=1, mu=1):
-        # beta, beta1, beta2 = self.split_beta(full_beta)
-        A = self.log_loss(X, y, full_beta)
-        fx1 = self.predict_proba_(X1, full_beta)
-        fx2 = self.predict_proba_(X2, full_beta)
-        pairwise_loss = E_z1 * np.log(1 / (1 + np.exp(fx1)) * 1 / (1 + np.exp(z * fx2))) + \
-                        E_z2 * np.log(1 / (1 + np.exp(-fx1)) * 1 / (1 + np.exp(-z * fx2)))
-        pairwise_loss = pairwise_loss.mean()
-        norm_loss = -np.dot(full_beta.T, full_beta)
-        return - (A + mu * pairwise_loss + alpha * norm_loss)
-
-    def log_loss(self, X, y, beta, X_prim=None):
-        the_loss = np.log(1 / (1 + np.exp(-y * self.predict_proba_(X, beta, X_prim=X_prim))))
-        the_loss = np.mean(the_loss)
-        return the_loss
+        # return - lloss_grad - beta * ploss_grad + 2 * alpha * norm_loss_grad
+        return - alpha / max(len(y), 1) * lloss_grad \
+               - beta / max(len(z), 1) * ploss_grad \
+               + 2 * norm_loss_grad
 
     def get_params(self, deep=True):
         return {'alpha': self.alpha,
-                'mu': self.mu,
+                'beta': self.beta,
                 'percent_pairs': self.percent_pairs,
                 'kernel': self.kernel,
-                'gamma': self.gamma}
+                'gamma': self.gamma,
+                'sampling': self.sampling,
+                'verbose': self.verbose,
+                'max_iter': self.max_iter}
 
     def set_params(self, **params):
-        self.alpha = params.pop('alpha', 1)
-        self.mu = params.pop('mu', 1)
-        self.percent_pairs = params.pop('percent_pairs', 0.5)
-        self.gamma = params.pop('gamma', 'auto')
-        self.kernel = params.pop('kernel', 'linear')
+        self.alpha = params.pop('alpha', self.alpha)
+        self.beta = params.pop('beta', self.beta)
+        self.percent_pairs = params.pop('percent_pairs', self.percent_pairs)
+        self.gamma = params.pop('gamma', self.gamma)
+        self.kernel = params.pop('kernel', self.kernel)
+        self.sampling = params.pop('sampling', self.sampling)
+        self.max_iter = params.pop('max_iter', self.max_iter)
+        self.verbose = params.pop('verbose', self.verbose)
         return self
+
+
+def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42):
+    if random_state:
+        np.random.seed(random_state)
+
+    # X = X.toarray()
+
+    choice1 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
+    choice1 = np.in1d(np.arange(len(y)), choice1)
+
+    choice2 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
+    choice2 = np.in1d(np.arange(len(y)), choice2)
+
+    z = (y[choice1] == y[choice2]).astype(float)
+
+    links_index = choice1 | choice2
+    # print(links_index.sum())
+
+
+    if percent_labels < 1:
+        not_links_where = np.where(~links_index)[0]
+        labels_choice = next(StratifiedShuffleSplit(n_splits=1,
+                                                    train_size=int(percent_labels * len(y))).split(
+            X[not_links_where], y[not_links_where]))[0]
+
+        # print(not_links_where.shape)
+        labels_choice = not_links_where[labels_choice]
+    else:
+        raise Exception()
+        # labels_choice = np.arange(0, len(X))
+    labels_index = np.in1d(np.arange(len(y)), labels_choice)
+
+    unsup_index = ~(labels_index & links_index)
+    unsup_where = np.where(unsup_index)[0]
+    unsup_choice = np.random.choice(unsup_where, size=int(percent_unlabeled * len(y)),
+                                    replace=False)
+
+    # print(labels_index.sum(), links_index.sum(), unsup_index.sum())
+    assert (labels_index | links_index | unsup_index).sum() == len(y)
+
+    return labels_index, choice1, choice2, unsup_choice
 
 
 def plot_moons(estimator):
     X, y = make_moons(n_samples=400,
-                        noise=0.1)  # make_moons(n_samples=400, noise=0.10, random_state=0)
-    #y[y==0] = -1
+                      noise=0.1)  # make_moons(n_samples=400, noise=0.10, random_state=0)
+    # y[y==0] = -1
 
-    #X = StandardScaler().fit_transform(X)
+    # X = StandardScaler().fit_transform(X)
 
 
     X_train, X_test, y_train, y_test = \
@@ -507,7 +537,18 @@ def plot_moons(estimator):
     ax.set_xticks(())
     ax.set_yticks(())
 
+    labels, links1, links2, unsup = split_dataset(X_train, y_train, percent_labels=0.1,
+                                                  percent_links=0.1,
+                                                  percent_unlabeled=0.0)
+    z = (y_train[links1] == y_train[links2]).astype(int)
+
+    if isinstance(estimator, GridSearchCV) and isinstance(estimator.estimator,
+                                                          LogisticRegressionPairwise):
+        estimator.fit_params = {'X1': X_train[links1], 'X2': X_train[links2], 'z': z}
     estimator.fit(X_train, y_train)
+
+    if isinstance(estimator, GridSearchCV):
+        print(estimator.best_params_, estimator.best_score_)
     # score = estimator.score(X_test, y_test)
 
     # Plot the decision boundary. For that, we will assign a color to each
@@ -516,7 +557,7 @@ def plot_moons(estimator):
 
     # Put the result into a color plot
     Z = Z.reshape(xx.shape)
-    ax.contourf(xx, yy, Z, cmap=cm, alpha=.5, levels=np.linspace(0, 1, 20))
+    ax.contourf(xx, yy, Z, cmap=cm, alpha=.9, levels=np.linspace(0, 1, 20))
 
 
 def compare_moons():
@@ -532,16 +573,16 @@ def compare_moons():
 
     plot_moons(
         GridSearchCV(
-        LogisticRegression(alpha=0.01,
-                           kernel='rbf',
-                           gamma=3),
-        {
-            'alpha': [1e-5, 1e-4, 1e-3],
-            'gamma': [0.1, 0.3, 0.5, 0.9]
-        },
-        cv=5,
-        verbose=True,
-        scoring=make_scorer(accuracy_score))
+            LogisticRegressionPairwise(alpha=100,
+                                       kernel='rbf',
+                                       gamma=3),
+            {
+                'alpha': [100],
+                'gamma': [1.5]
+            },
+            cv=5,
+            verbose=True,
+            scoring=make_scorer(accuracy_score))
     )
     # plt.show(block=True)
     # plot_moons(
@@ -566,18 +607,19 @@ if __name__ == '__main__':
         y_true[y_true == -1] = 0
         return accuracy_score(y_true, y_pred)
 
+
     plot_moons(
         GridSearchCV(
-        LogisticRegression(alpha=0.01,
-                           gamma=3),
-        {
-            'kernel':['rbf'],
-            'alpha': [1e-5, 1e-4, 1e-3],
-            'gamma': [0.1, 0.3, 0.5, 0.9]
-        },
-        cv=5,
-        verbose=2,
-        scoring=accuracy_scorer)
+            LogisticRegressionPairwise(kernel='rbf', gamma='auto', sampling='predefined',
+                                       verbose=True),
+            {
+                'alpha': [100],
+                'beta': [100],
+                'gamma': [3],
+            },
+            cv=5,
+            verbose=2,
+            scoring=accuracy_scorer)
     )
     plt.show()
 
@@ -669,7 +711,6 @@ if __name__ == '__main__':
                               iid=False, refit=False, n_jobs=-1, verbose=1)
             gs.fit(X, y)
             results = gs.cv_results_
-
 
             # plt.plot(results['params'])
             plot_2d_slice(results['mean_test_score'],

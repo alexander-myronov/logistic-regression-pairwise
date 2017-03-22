@@ -1,3 +1,4 @@
+from __future__ import division, print_function, with_statement
 from functools import partial
 import numpy as np
 import pandas as pd
@@ -22,7 +23,7 @@ class LinksClassifier(BaseEstimator):
                  sampling='random',
                  init='zeros',
                  delta=1,
-                 solver='ncg'):
+                 solver='tnc'):
         self.v = None
         self.alpha = alpha
         self.X = None
@@ -106,15 +107,15 @@ class LinksClassifier(BaseEstimator):
         self.v = self.init_f()
 
         f = partial(self.loss, X, y, self.X1, self.X2, self.z, self.Xu,
-                    alpha=self.alpha, gamma=self.beta, delta=self.delta)
+                    alpha=self.alpha, beta=self.beta, delta=self.delta)
 
         fprime = partial(self.loss_grad, X, y, self.X1, self.X2, self.z, self.Xu,
-                         alpha=self.alpha, gamma=self.beta, delta=self.delta)
+                         alpha=self.alpha, beta=self.beta, delta=self.delta)
 
         fprime_lloss = partial(self.links_loss_grad, X, self.X1, self.X2, self.z)
         f_lloss = partial(self.links_loss, self.X1, self.X2, self.z)
 
-        for _ in xrange(0):
+        for _ in xrange(kwargs.pop('n_gradient_checks', 0)):
             v_test = np.random.normal(size=self.v.ravel().shape)
             # num_grad_lloss = scipy.optimize.approx_fprime(
             #     v_test,
@@ -164,11 +165,11 @@ class LinksClassifier(BaseEstimator):
                                               self.v,
                                               # approx_grad=True,
                                               fprime=fprime,
-                                              maxfun=100,
+                                              maxfun=500,
                                               ftol=1e-4,
                                               disp=0,
                                               callback=cb,
-                                              #avextol=0.001,
+                                              # avextol=0.001,
                                               )
                 res = res[0]
 
@@ -297,7 +298,7 @@ class LinksClassifier(BaseEstimator):
         probs[:, -1] = 1 - probs[:, :-1].sum(axis=1)
         return probs
 
-    def loss(self, X, y, X1, X2, z, Xu, v, gamma=1, alpha=1, delta=1, split=False):
+    def loss(self, X, y, X1, X2, z, Xu, v, alpha=1, beta=1, delta=1, split=False):
         labeled_loss = 0
         v_by_class = v.reshape(self.n_classes - 1, -1)
         probs = self.predict_proba_(X, v_by_class)
@@ -310,9 +311,16 @@ class LinksClassifier(BaseEstimator):
         link_loss = self.links_loss(X1, X2, z, v)
         norm_loss = np.dot(v, v)
         u_loss = self.unsup_loss(Xu, v)
+
         if split:
-            return labeled_loss, alpha * link_loss, gamma * norm_loss, delta * u_loss
-        return labeled_loss + alpha * link_loss + gamma * norm_loss + delta * u_loss
+            return alpha / max(len(y), 1) * labeled_loss, \
+                   beta / max(len(z), 1) * link_loss, \
+                   delta / max(len(Xu), 1) * u_loss, \
+                   norm_loss
+        return alpha / max(len(y), 1) * labeled_loss \
+               + beta / max(len(z), 1) * link_loss \
+               + delta / max(len(Xu), 1) * u_loss \
+               + norm_loss
 
     def links_loss(self, X1, X2, z, v):
         v_by_class = v.reshape(self.n_classes - 1, -1)
@@ -354,7 +362,7 @@ class LinksClassifier(BaseEstimator):
         grad = (-exps[:, m]) / ((1 + exps.sum(axis=1)) ** 2)
         return grad
 
-    def loss_grad(self, X, y, X1, X2, z, Xu, v, gamma=1, alpha=1, delta=1):
+    def loss_grad(self, X, y, X1, X2, z, Xu, v, alpha=1, beta=1, delta=1):
 
         v_by_class = v.reshape(self.n_classes - 1, -1)
 
@@ -389,10 +397,10 @@ class LinksClassifier(BaseEstimator):
         links_loss_grad = self.links_loss_grad(X, X1, X2, z, v)
         u_loss_grad = self.unsup_loss_grad(X, X1, X2, Xu, v)
 
-        return - 2 * labeled_loss_grad.ravel() \
-               + alpha * links_loss_grad \
-               + 2 * gamma * v_by_class.ravel() \
-               + delta * u_loss_grad
+        return - 2 * alpha / max(len(y), 1) * labeled_loss_grad.ravel() \
+               - 2 * beta / max(len(z), 1) * links_loss_grad \
+               - 2 * delta / max(len(Xu), 1) * u_loss_grad \
+               + 2 * v_by_class.ravel()
 
     def links_loss_grad(self, X, X1, X2, z, v):
         v_by_class = v.reshape(self.n_classes - 1, -1)
@@ -435,7 +443,7 @@ class LinksClassifier(BaseEstimator):
             grad = (z - link_loss_grad_by_class_sum1.sum(axis=1)).reshape(-1, 1) * \
                    link_loss_grad_by_class_sum2.sum(axis=1)
             links_loss_grad[k] = np.sum(grad, axis=0)
-        return -2 * links_loss_grad.ravel()
+        return links_loss_grad.ravel()
 
     def unsup_loss_grad(self, X, X1, X2, Xu, v):
         v_by_class = v.reshape(self.n_classes - 1, -1)
@@ -465,4 +473,4 @@ class LinksClassifier(BaseEstimator):
 
                 u_loss_grad_k += k_l_grad.sum(axis=0)
             u_loss_grad[k] = u_loss_grad_k
-        return -2 * u_loss_grad.ravel()
+        return u_loss_grad.ravel()

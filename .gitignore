@@ -45,3 +45,4 @@ fabric.properties
 *.pyc
 data/
 .idea/
+.ipynb_checkpoints/
