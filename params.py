@@ -31,7 +31,7 @@ from sklearn.model_selection import ParameterGrid, StratifiedShuffleSplit, GridS
 
 from tqdm import tqdm as tqdm
 
-from start_sensitivity import split_dataset
+from start_sensitivity import split_dataset_stable
 import multiprocess as mp
 
 links_grid = {
@@ -88,11 +88,12 @@ def task(context, **kwargs):
         test = kwargs.pop('test')
         X_train, y_train = X[train], y[train]
 
-        X_tr, y_tr, X1_tr, X2_tr, z_tr, Xu_tr = split_dataset(
+        X_tr, y_tr, X1_tr, X2_tr, z_tr, Xu_tr = split_dataset_stable(
             X_train, y_train,
             percent_labels=context['percent_labels'],
             percent_links=context['percent_links'],
-            percent_unlabeled=context['percent_unlabeled'])
+            percent_unlabeled=context['percent_unlabeled'],
+            disjoint_labels_and_links=False)
 
         estimator = LinksClassifier(sampling='predefined',
                                     init='normal',
@@ -105,8 +106,8 @@ def task(context, **kwargs):
         #     continue
 
         grid = {
-            'alpha': [0.01, 0.1, 1, 10, 100],
-            'gamma': [0.01, 0.05, 0.1, 0.5, 1],
+            'alpha': [0.01, 0.1, 1, 10, 100, 1000],
+            'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2],
             # 'kernel': ['rbf'],
         }
 
@@ -151,7 +152,7 @@ def task(context, **kwargs):
         best_params = {'alpha': best_params[0], 'gamma': best_params[1]}
         estimator_best = clone(estimator)
         estimator_best.set_params(**best_params)
-        #estimator_best.verbose = True
+        # estimator_best.verbose = True
         # print(context, 'fitting on full train set')
         estimator_best.fit(X_tr, y_tr, X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
 
@@ -180,8 +181,17 @@ if __name__ == '__main__':
         # r'data/ionosphere_scale.libsvm',
     ]
 
+
+    def load_ds(fname):
+        X, y = load_svmlight_file(fname)
+        if issparse(X):
+            X = X.toarray()
+        y[y == -1] = 0
+        return X, y
+
+
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
-                             load_svmlight_file(f))
+                             load_ds(f))
                             for f in datafiles_toy])
     datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
     datasets['moons'] = make_moons(n_samples=400, noise=0.1)
@@ -216,8 +226,8 @@ if __name__ == '__main__':
     percent_links_range = [0.3]  # np.linspace(0.1, 0.3, 5)
     percent_unlabeled_range = [0.3]
 
-    beta_range = [0.1, 0.2, 0.3, 0.5, 0.7, 1]
-    delta_range = [0.01, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5]
+    beta_range = [1, 5, 10, 50, 100, 200, 300, 400, 500, 1000, 2000]
+    delta_range = [1, 5, 10, 50, 100, 200, 300, 400, 500, 1000, 2000]
 
 
     def task_generator():

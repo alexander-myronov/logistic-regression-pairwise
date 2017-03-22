@@ -30,10 +30,6 @@ from tqdm import tqdm as tqdm
 
 from new_experiment_runner.cacher import CSVCacher
 
-
-
-
-
 # In[60]:
 
 datafiles_toy = [
@@ -62,7 +58,6 @@ datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
                          load_svmlight_file(f))
                         for f in datafiles_toy])
 
-
 # In[80]:
 
 datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
@@ -75,7 +70,25 @@ datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
 # In[87]:
 
-def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42):
+def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42,
+                  disjoint_labels_and_links=False, return_index=False):
+    """
+    This function splits a dataset into 3 portions:
+    1. labeled data
+    2. links
+    3. unlabeled data
+    :param X:
+    :param y:
+    :param percent_labels:
+    :param percent_links:
+    :param percent_unlabeled:
+    :param random_state:
+    :param disjoint_labels_and_links:
+    :param return_index
+    :return: X(labeled), y(labels),
+        X1(first point in link), X2(second point in link), z(must-link or cannot-link),
+        Xu(unlabeled)
+    """
     if random_state:
         np.random.seed(random_state)
     if issparse(X):
@@ -94,7 +107,10 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
 
 
     if percent_labels < 1:
-        not_links_where = np.where(~links_index)[0]
+        if disjoint_labels_and_links:
+            not_links_where = np.where(~links_index)[0]
+        else:
+            not_links_where = np.arange(len(y))
         labels_choice = next(StratifiedShuffleSplit(n_splits=1,
                                                     train_size=int(percent_labels * len(y))).split(
             X[not_links_where], y[not_links_where]))[0]
@@ -112,12 +128,86 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
                                     replace=False)
 
     # print(labels_index.sum(), links_index.sum(), unsup_index.sum())
-    assert (labels_index | links_index | unsup_index).sum() == len(y)
+    if disjoint_labels_and_links:
+        assert (labels_index | links_index | unsup_index).sum() == \
+               len(y) * (percent_labels + percent_links + percent_unlabeled)
 
+    # assert labels_index.sum() == len(y) * percent_labels
+    # assert links_index.sum() == len(y) * percent_links #TODO
+    # assert unsup_index.sum() == len(y) * percent_unlabeled
+
+    if return_index:
+        return labels_index, choice1, choice2, z, unsup_choice
     return X[labels_index], y[labels_index], X[choice1], X[choice2], z, X[unsup_choice]
 
 
-# In[88]:
+def split_dataset_stable(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42,
+                         disjoint_labels_and_links=True, return_index=False):
+    """
+    This function splits a dataset into 3 portions:
+    1. labeled data
+    2. links
+    3. unlabeled data
+    It does so in a "stable" way, so that e.g. 15% percent of links are included in 30% of links,
+        i.e. the same 15% plus another 15%
+
+    :param X:
+    :param y:
+    :param percent_labels:
+    :param percent_links:
+    :param percent_unlabeled:
+    :param random_state:
+    :param disjoint_labels_and_links:
+    :param return_index:
+    :return: X(labeled), y(labels),
+        X1(first point in link), X2(second point in link), z(must-link or cannot-link),
+        Xu(unlabeled)
+    """
+    max_percent_labels, max_percent_links, max_percent_unlabeled = \
+        get_max_percents(y, disjoint_labels_links=disjoint_labels_and_links)
+
+    assert percent_labels <= max_percent_labels \
+           and percent_links <= max_percent_links \
+           and percent_unlabeled <= max_percent_unlabeled
+
+    labels, links1, links2, z, unsup = \
+        split_dataset(X, y,
+                      percent_labels=max_percent_labels,
+                      percent_links=max_percent_links,
+                      percent_unlabeled=max_percent_unlabeled,
+                      random_state=random_state,
+                      disjoint_labels_and_links=disjoint_labels_and_links,
+                      return_index=True)
+
+    labels = np.where(labels)[0]
+    links1 = np.where(links1)[0]
+    links2 = np.where(links2)[0]
+    unsup = np.where(unsup)[0]
+
+    labels = labels[:int(len(y) * percent_labels)]
+    links1 = links1[:int(len(y) * percent_links)]
+    links2 = links2[:int(len(y) * percent_links)]
+    z = z[:int(len(y) * percent_links)]
+    unsup = unsup[:int(len(y) * percent_unlabeled)]
+    if return_index:
+        return labels, links1, links2, z, unsup
+    return X[labels], y[labels], X[links1], X[links2], z, X[unsup]
+
+
+def get_max_percents(y, disjoint_labels_links):
+    """
+    Function to calculate maximum percent of
+    labels, links and unlabeled data points for given class stratification
+    Currently a heuristic
+    :param y:
+    :param disjoint_labels_links:
+    :return: percent_labels, percent_links, percent_unlabeled
+    """
+    if disjoint_labels_links:
+        return 0.3, 0.3, 0.4
+    else:
+        return 0.5, 0.5, 0.5
+
 
 def accuracy_scorer(estimator, X, y):
     import numpy as np

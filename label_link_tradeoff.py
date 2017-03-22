@@ -95,13 +95,15 @@ def task(context, **kwargs):
             percent_links=context['percent_links'],
             percent_unlabeled=context['percent_unlabeled'])
 
-        estimator = LinksClassifier(sampling='predefined',
-                                    init='normal',
-                                    verbose=False,
-                                    solver='tnc',
-                                    kernel='rbf',
-                                    beta=context['beta'],
-                                    delta=context['delta'])
+        estimator = LogisticRegression(kernel='rbf', alpha=1)
+
+        # estimator = LinksClassifier(sampling='predefined',
+        #                             init='normal',
+        #                             verbose=False,
+        #                             solver='tnc',
+        #                             kernel='rbf',
+        #                             beta=context['beta'],
+        #                             delta=context['delta'])
         # if len(cacher.get(context) > 1):
         #     continue
 
