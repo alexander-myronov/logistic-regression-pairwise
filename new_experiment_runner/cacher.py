@@ -1,12 +1,37 @@
-import pandas as pd
-import numpy as np
-
 import itertools
+from abc import abstractmethod, ABCMeta
+
+import numpy as np
+import pandas as pd
 
 __author__ = 'myronov'
 
 
-class CSVCacher(object):
+class CacherABC(object):
+    __metaclass__ = ABCMeta
+
+    @abstractmethod
+    def __len__(self):
+        pass
+
+    @abstractmethod
+    def get_index(self, key):
+        pass
+
+    @abstractmethod
+    def save(self):
+        pass
+
+    @abstractmethod
+    def set(self, key, value):
+        pass
+
+    @abstractmethod
+    def get(self, key):
+        pass
+
+
+class CSVCacher(CacherABC):
     def __init__(self, filename):
         self.filename = filename
         try:

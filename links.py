@@ -203,10 +203,10 @@ class LinksClassifier(BaseEstimator):
             X1, X2, z = self.sample_pairs_max_kdist(X, y)
             Xu = np.zeros(shape=(0, X.shape[1]))
         elif self.sampling == 'predefined':
-            X1 = kwargs['X1']
-            X2 = kwargs['X2']
-            z = kwargs['z']
-            Xu = kwargs['Xu']
+            X1 = kwargs.get('X1', np.zeros(shape=(0, X.shape[1])))
+            X2 = kwargs.get('X2', np.zeros(shape=(0, X.shape[1])))
+            z = kwargs.get('z', np.zeros(0))
+            Xu = kwargs.get('Xu', np.zeros(shape=(0, X.shape[1])))
 
             if X1.shape[1] == X.shape[1] - 1:
                 X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
