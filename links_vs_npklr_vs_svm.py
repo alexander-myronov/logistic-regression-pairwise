@@ -41,6 +41,9 @@ import multiprocess as mp
 
 from scipy.stats import expon
 
+estimator_tuple = namedtuple('estimator_tuple',
+                             ['name', 'estimator', 'kwargs_func', 'grid_func'])
+
 
 def accuracy_scorer(estimator, X, y):
     import numpy as np
@@ -86,7 +89,26 @@ def get_delta_distribution(method, n):
         return expon(1, 1)
 
 
+def links_grid_rbf(X, y, fit_kwargs):
+    from links_vs_npklr_vs_svm import get_alpha_distribution, get_beta_distribution, \
+        get_delta_distribution
+    grid = {
+        'alpha': get_alpha_distribution(2, len(y)),
+        'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 100],
+    }
+    if 'z' in fit_kwargs:
+        grid['beta'] = get_beta_distribution(2, len(fit_kwargs['z']))
+    if 'Xu' in fit_kwargs:
+        grid['delta'] = get_delta_distribution(2, len(fit_kwargs['Xu']))
+    return grid
+
+
 def task(context, **kwargs):
+    from start_sensitivity import split_dataset_stable
+    from new_experiment_runner.cacher import CSVCacher
+    from links_vs_npklr_vs_svm import split_datasets, accuracy_scorer
+    from sklearn.model_selection import ParameterSampler
+    from sklearn.base import clone
     estimator_tuple = kwargs.pop('estimator')
 
     X = kwargs.pop('X')
@@ -257,22 +279,6 @@ if __name__ == '__main__':
         return fit_kwargs
 
 
-    def links_grid_rbf(X, y, fit_kwargs):
-        # z = kwargs.get('Xu', np.empty(shape=0))
-        # Xu = kwargs.get('Xu', np.empty(shape=0))
-        grid = {
-            'alpha': get_alpha_distribution(2, len(y)),
-            'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 100],
-        }
-        if 'z' in fit_kwargs:
-            grid['beta'] = get_beta_distribution(2, len(fit_kwargs['z']))
-        if 'Xu' in fit_kwargs:
-            grid['delta'] = get_delta_distribution(2, len(fit_kwargs['Xu']))
-        return grid
-
-
-    estimator_tuple = namedtuple('estimator_tuple',
-                                 ['name', 'estimator', 'kwargs_func', 'grid_func'])
     estimators = [
         estimator_tuple(
             name='Links(labels+links)',
