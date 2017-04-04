@@ -27,6 +27,7 @@ from plot import plot_2d_slice
 
 class LogisticRegression(BaseEstimator):
     def __init__(self, alpha, kernel='linear', gamma='auto'):
+        raise DeprecationWarning('this stuff is way too old')
         self.beta = None
         self.alpha = alpha
         self.X = None

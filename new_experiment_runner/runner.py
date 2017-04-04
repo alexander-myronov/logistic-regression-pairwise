@@ -35,7 +35,11 @@ class Runner(object):
     def run(self):
 
         tasks = map(lambda (context, kwds): (self.task, context, kwds), self.task_generator)
+        total_tasks = len(tasks)
         tq = tqdm(total=len(tasks))
+        tasks = filter(lambda (task, context, kwds): len(self.cacher.get(context)) == 0, tasks)
+        task_to_do = len(tasks)
+        tq.update(n=total_tasks - task_to_do)
         for context, result in self.mapper(Runner.map_f, tasks):
 
             if isinstance(result, tuple) and len(result) == 3 and isinstance(result[1], Exception):

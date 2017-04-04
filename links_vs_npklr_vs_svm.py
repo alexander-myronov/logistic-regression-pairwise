@@ -5,6 +5,7 @@ from sklearn import clone
 import sys
 
 from sklearn.model_selection import ParameterSampler
+from sklearn.svm import SVC
 
 from new_experiment_runner.cacher import CSVCacher
 from new_experiment_runner.runner import Runner
@@ -55,10 +56,20 @@ def accuracy_scorer(estimator, X, y):
 
 
 def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2):
-    y_split = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size).split(X, y)
-    z_split = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size).split(X1, z)
-    u_split = ShuffleSplit(n_splits=n_splits, test_size=test_size).split(Xu, np.arange(len(Xu)))
-    for (tr_y, te_y), (tr_z, te_z), (tr_u, te_u) in itertools.izip(y_split, z_split, u_split):
+    y_split = []
+    z_split = []
+    u_split = []
+    if len(y) > 0:
+        y_split = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size).split(X, y)
+    if len(z) > 0:
+        z_split = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size).split(X1, z)
+    if len(Xu) > 0:
+        u_split = ShuffleSplit(n_splits=n_splits, test_size=test_size).split(Xu, np.arange(len(Xu)))
+    for (tr_y, te_y), (tr_z, te_z), (tr_u, te_u) in \
+            itertools.izip_longest(y_split,
+                                   z_split,
+                                   u_split,
+                                   fillvalue=(np.zeros(0, dtype=int), np.zeros(0, dtype=int))):
         yield (tr_y, tr_z, tr_u), (te_y, te_z, te_u)
 
 
@@ -94,13 +105,21 @@ def links_grid_rbf(X, y, fit_kwargs):
         get_delta_distribution
     grid = {
         'alpha': get_alpha_distribution(2, len(y)),
-        'gamma': [0.01, 0.05, 0.1, 0.5, 1, 2, 5, 100],
+        'gamma': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
     }
-    if 'z' in fit_kwargs:
+    if 'z' in fit_kwargs and len(fit_kwargs['z']) > 0:
         grid['beta'] = get_beta_distribution(2, len(fit_kwargs['z']))
-    if 'Xu' in fit_kwargs:
+    if 'Xu' in fit_kwargs and len(fit_kwargs['Xu']) > 0:
         grid['delta'] = get_delta_distribution(2, len(fit_kwargs['Xu']))
     return grid
+
+
+def svm_grid_rbf(X, y, fit_kwargs):
+    from links_vs_npklr_vs_svm import get_alpha_distribution
+    return {
+        'C': get_alpha_distribution(2, len(y)),
+        'gamma': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
+    }
 
 
 def task(context, **kwargs):
@@ -133,7 +152,7 @@ def task(context, **kwargs):
     rs_cacher = CSVCacher(filename=None)
     rs_context = {}
 
-    for i_inner_split, ((tr_y, tr_z, tr_u), (te_y, tr_z, tr_u)) \
+    for i_inner_split, ((tr_y, tr_z, tr_u), (te_y, te_z, te_u)) \
             in enumerate(
         split_datasets(
             X_tr,
@@ -144,7 +163,7 @@ def task(context, **kwargs):
             Xu_tr,
             n_splits=context['rs_splits'],
             test_size=context['rs_test_size'])):
-        rs_context['re_split'] = i_inner_split
+        rs_context['rs_split'] = i_inner_split
 
         fit_kwargs = {
             'X1': X1_tr[tr_z],
@@ -254,16 +273,17 @@ if __name__ == '__main__':
     args = parser.parse_args()
     cacher = CSVCacher(filename=args.file)
 
-    context = {'rs_test_size': args.rs_test_size,
-               'rs_splits': args.rs_folds,
-               'cv_test_size': args.cv_test_size,
-               'cv_splits': args.cv_folds,
-               'rs_iters': args.rs_iters,
-               'cv_random_state': 42}
+    context = OrderedDict(
+        rs_test_size=args.rs_test_size,
+        rs_splits=args.rs_folds,
+        cv_test_size=args.cv_test_size,
+        cv_splits=args.cv_folds,
+        rs_iters=args.rs_iters,
+        cv_random_state=42)
 
     percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
     percent_links_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_unlabeled_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_unlabeled_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 
     def labels_only(fit_kwargs):
@@ -281,10 +301,20 @@ if __name__ == '__main__':
 
     estimators = [
         estimator_tuple(
-            name='Links(labels+links)',
+            name='Links',
             estimator=LinksClassifier(kernel='rbf', sampling='predefined', solver='tnc'),
+            kwargs_func=lambda kw: kw,
+            grid_func=links_grid_rbf),
+        estimator_tuple(
+            name='NPKLR',
+            estimator=LogisticRegressionPairwise(kernel='rbf', sampling='predefined'),
             kwargs_func=labels_links,
-            grid_func=links_grid_rbf)
+            grid_func=links_grid_rbf),
+        estimator_tuple(
+            name='SVM',
+            estimator=SVC(kernel='rbf'),
+            kwargs_func=labels_only,
+            grid_func=svm_grid_rbf)
     ]
 
 
@@ -297,9 +327,22 @@ if __name__ == '__main__':
             for estimator_tuple in estimators:
                 context['estimator'] = estimator_tuple.name
 
-                percents = itertools.product(percent_labels_range,
-                                             percent_links_range,
-                                             percent_unlabeled_range)
+                if isinstance(estimator_tuple.estimator, LinksClassifier):
+                    links_and_labels = itertools.izip(percent_labels_range, percent_links_range)
+                    percents = [(links, labels, unlabeled) for (links, labels), unlabeled in
+                                itertools.product(links_and_labels, percent_unlabeled_range)]
+                elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
+                    percents = itertools.izip_longest(percent_labels_range,
+                                                      percent_links_range,
+                                                      [], fillvalue=0.0)
+                elif isinstance(estimator_tuple.estimator, SVC):
+                    percents = itertools.izip_longest(percent_labels_range,
+                                                      [],
+                                                      [], fillvalue=0.0)
+                else:
+                    raise Exception(
+                        "I don't know what to do with %s" % type(estimator_tuple.estimator))
+                percents = list(percents)
 
                 for p_labels, p_links, p_unlabeled in percents:
 
@@ -316,14 +359,13 @@ if __name__ == '__main__':
                                                           'cv_random_state']).split(X, y)
                     for i_split, (train, test) in enumerate(outer_cv):
                         context['cv_split'] = i_split
-                        if len(cacher.get(context)) == 0:
-                            yield dict(context), {
-                                'estimator': estimator_tuple,
-                                'X': X,
-                                'y': y,
-                                'train': train,
-                                'test': test
-                            }
+                        yield OrderedDict(context), {
+                            'estimator': estimator_tuple,
+                            'X': X,
+                            'y': y,
+                            'train': train,
+                            'test': test
+                        }
 
 
     if args.jobs == 1:
