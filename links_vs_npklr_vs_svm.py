@@ -203,7 +203,9 @@ def task(context, **kwargs):
     estimator_best.set_params(**best_params)
     # estimator_best.verbose = True
     # print(context, 'fitting on full train set')
-    estimator_best.fit(X_tr, y_tr, X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
+    fit_kwargs = dict(X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
+    fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
+    estimator_best.fit(X_tr, y_tr, **fit_kwargs)
 
     test_score = accuracy_scorer(estimator_best, X[test], y[test])
 
