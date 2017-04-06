@@ -331,7 +331,7 @@ if __name__ == '__main__':
 
                 if isinstance(estimator_tuple.estimator, LinksClassifier):
                     links_and_labels = itertools.izip(percent_labels_range, percent_links_range)
-                    percents = [(links, labels, unlabeled) for (links, labels), unlabeled in
+                    percents = [(labels, links, unlabeled) for (labels, links), unlabeled in
                                 itertools.product(links_and_labels, percent_unlabeled_range)]
                 elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
                     percents = itertools.izip_longest(percent_labels_range,
