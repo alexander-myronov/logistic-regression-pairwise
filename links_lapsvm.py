@@ -108,7 +108,7 @@ if __name__ == '__main__':
         r'data/breast-cancer_scale.libsvm',
         r'data/australian_scale.libsvm',
         r'data/ionosphere_scale.libsvm',
-        r'data/german.numer_scale.libsvm',
+        # r'data/german.numer_scale.libsvm',
         r'data/heart_scale.libsvm',
         r'data/liver-disorders_scale.libsvm'
 
@@ -276,10 +276,11 @@ if __name__ == '__main__':
 
 
     def get_lapsvm_grid(X, y, fit_kwargs):
-        lapsvm_grid = {'gamma': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
-                       'gamma_A': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
-                       'gamma_I': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
-                       }
+        lapsvm_grid = {
+            'gamma': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
+            'gamma_A': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
+            'gamma_I': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
+        }
         return lapsvm_grid
 
 
@@ -290,7 +291,8 @@ if __name__ == '__main__':
 
     links_and_labels = itertools.izip(percent_labels_range, percent_unlabeled_range)
     links_percents = [(labels, links, unlabeled) for (labels, unlabeled), links in
-                      itertools.product(links_and_labels, percent_unlabeled_range)]
+                      itertools.product(links_and_labels,
+                                        percent_links_range[1:])]  # TODO: notice the hack
 
 
     def links_grid_rbf(X, y, fit_kwargs):
@@ -350,6 +352,7 @@ if __name__ == '__main__':
     # generate lapsvm contexts and write them to disk
     # contexts_by_ds = task_generator(lapsvm_grid, lapsvm_percents)
     # print('generated %d contexts' % sum(map(len, contexts_by_ds.itervalues())))
+    args.cv_folds = 15
     for ds_name, contexts in task_generator(get_lapsvm_grid, lapsvm_percents):
 
         mat_input_filename = 'data/lapsvm/lapsvm_%s.mat' % ds_name

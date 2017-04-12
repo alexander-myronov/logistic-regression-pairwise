@@ -96,14 +96,15 @@ class LinksClassifier(BaseEstimator):
     def fit(self, X, y, **kwargs):
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         self.X = X
-
-        self.X1, self.X2, self.z, self.Xu = self.sampling_f(X, y, **kwargs)
         self.n_classes = len(np.unique(y))
-        self.fullX = np.vstack([X, self.X1, self.X2, self.Xu])
-        self.K = self.kernel_f(self.fullX, self.fullX)
         assert np.sum(y == -1) == 0
         self.y = np.copy(y)
-        # self.y[self.y == -1] = 0
+
+        X1, X2, z, Xu = self.sampling_f(X, y, **kwargs)
+        self.X1, self.X2, self.z, self.Xu = self.preprocess_additional_arrays(X, y, X1, X2, z, Xu)
+
+        self.fullX = np.vstack([X, self.X1, self.X2, self.Xu])
+        self.K = self.kernel_f(self.fullX, self.fullX)
 
         self.v = self.init_f()
 
@@ -195,6 +196,28 @@ class LinksClassifier(BaseEstimator):
         self.v = self.v.reshape(self.n_classes - 1, -1)
         return self
 
+    def calc_loss(self, X, y, X1, X2, z, Xu):
+        X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
+        X1, X2, z, Xu = self.preprocess_additional_arrays(X, y, X1, X2, z, Xu)
+        fullX = np.vstack([X, X1, X2, Xu])
+        assert fullX.shape[1] == self.fullX.shape[1]
+        # K = self.kernel_f(fullX, self.fullX)
+        v = self.v.ravel()
+        return self.loss(X, y, X1, X2, z, Xu, v,
+                         alpha=self.alpha,
+                         beta=self.beta,
+                         delta=self.delta,
+                         split=True)
+
+    def preprocess_additional_arrays(self, X, y, X1, X2, z, Xu):
+        if X1.shape[1] == X.shape[1] - 1:
+            X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
+        if X2.shape[1] == X.shape[1] - 1:
+            X2 = np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
+        if Xu.shape[1] == X.shape[1] - 1:
+            Xu = np.hstack([np.ones(shape=(Xu.shape[0], 1)), Xu])
+        return X1, X2, z, Xu
+
     def sampling_f(self, X, y, **kwargs):
         if self.sampling == 'random':
             X1, X2, z = self.sample_pairs_random(X, y)
@@ -207,13 +230,6 @@ class LinksClassifier(BaseEstimator):
             X2 = kwargs.get('X2', np.zeros(shape=(0, X.shape[1])))
             z = kwargs.get('z', np.zeros(0))
             Xu = kwargs.get('Xu', np.zeros(shape=(0, X.shape[1])))
-
-            if X1.shape[1] == X.shape[1] - 1:
-                X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
-            if X2.shape[1] == X.shape[1] - 1:
-                X2 = np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
-            if Xu.shape[1] == X.shape[1] - 1:
-                Xu = np.hstack([np.ones(shape=(Xu.shape[0], 1)), Xu])
 
         return X1, X2, z, Xu
 
