@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     cacher = CSVCacher('data/cross_loss_tests.csv')
     mapper = mp.Pool(processes=7).imap_unordered
-    runner = Runner(cross_loss, task_generator(), cacher=cacher, mapper=mapper)
+    runner = Runner(cross_loss, task_generator(), cacher=cacher, mapper=mapper, save_interval=1000)
     runner.run()
     exit()
 

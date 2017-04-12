@@ -16,11 +16,12 @@ from tqdm import tqdm as tqdm
 
 class Runner(object):
     def __init__(self, task, task_generator, mapper=itertools.imap,
-                 cacher=CSVCacher(filename=None)):
+                 cacher=CSVCacher(filename=None), save_interval=1):
         self.task = task
         self.task_generator = task_generator
         self.mapper = mapper
         self.cacher = cacher
+        self.save_interval = save_interval
 
     @staticmethod
     def map_f(task_context_kwds):
@@ -40,6 +41,7 @@ class Runner(object):
         tasks = filter(lambda (task, context, kwds): len(self.cacher.get(context)) == 0, tasks)
         task_to_do = len(tasks)
         tq.update(n=total_tasks - task_to_do)
+        i = 0;
         for context, result in self.mapper(Runner.map_f, tasks):
 
             if isinstance(result, tuple) and len(result) == 3 and isinstance(result[1], Exception):
@@ -52,8 +54,11 @@ class Runner(object):
                 result = {'result': result}
 
             self.cacher.set(context, result)
-            self.cacher.save()
+            i += 1
+            if i % self.save_interval == 0:
+                self.cacher.save()
             tq.update()
+        self.cacher.save()
         tq.close()
 
 

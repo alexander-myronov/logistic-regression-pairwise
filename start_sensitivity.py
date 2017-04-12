@@ -94,15 +94,21 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
     if issparse(X):
         X = X.toarray()
 
-    choice1 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
-    choice1 = np.in1d(np.arange(len(y)), choice1)
+    if percent_links > 0:
+        choice1 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
+        choice1 = np.in1d(np.arange(len(y)), choice1)
 
-    choice2 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
-    choice2 = np.in1d(np.arange(len(y)), choice2)
+        choice2 = next(StratifiedShuffleSplit(n_splits=1, train_size=percent_links).split(X, y))[0]
+        choice2 = np.in1d(np.arange(len(y)), choice2)
 
-    z = (y[choice1] == y[choice2]).astype(float)
+        z = (y[choice1] == y[choice2]).astype(float)
 
-    links_index = choice1 | choice2
+        links_index = choice1 | choice2
+    else:
+        choice1 = np.zeros(len(y), dtype=bool)
+        choice2 = np.zeros(len(y), dtype=bool)
+        z = np.array([])
+        links_index = choice1 | choice2
     # print(links_index.sum())
 
 
