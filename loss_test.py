@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from functools import partial
 
 import numpy as np
 import pandas as pd
@@ -109,7 +110,7 @@ if __name__ == '__main__':
 
 
     cacher = CSVCacher('data/cross_loss_tests.csv')
-    mapper = mp.Pool(processes=7).imap_unordered
+    mapper = partial(mp.Pool(processes=7).imap_unordered, chunksize=100)
     runner = Runner(cross_loss, task_generator(), cacher=cacher, mapper=mapper, save_interval=1000)
     runner.run()
     exit()

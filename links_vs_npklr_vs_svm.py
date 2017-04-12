@@ -101,11 +101,17 @@ def get_delta_distribution(method, n):
 
 
 def links_grid_rbf(X, y, fit_kwargs):
+    from links_vs_npklr_vs_svm import links_grid_linear
+    grid = links_grid_linear(X, y, fit_kwargs)
+    grid['gamma'] = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
+    return grid
+
+
+def links_grid_linear(X, y, fit_kwargs):
     from links_vs_npklr_vs_svm import get_alpha_distribution, get_beta_distribution, \
         get_delta_distribution
     grid = {
         'alpha': get_alpha_distribution(2, len(y)),
-        'gamma': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
     }
     if 'z' in fit_kwargs and len(fit_kwargs['z']) > 0:
         grid['beta'] = get_beta_distribution(2, len(fit_kwargs['z']))
@@ -115,10 +121,16 @@ def links_grid_rbf(X, y, fit_kwargs):
 
 
 def svm_grid_rbf(X, y, fit_kwargs):
+    from links_vs_npklr_vs_svm import svm_grid_linear
+    grid = svm_grid_linear(X, y, fit_kwargs)
+    grid['gamma'] = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
+    return grid
+
+
+def svm_grid_linear(X, y, fit_kwargs):
     from links_vs_npklr_vs_svm import get_alpha_distribution
     return {
         'C': get_alpha_distribution(2, len(y)),
-        'gamma': [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2],
     }
 
 
@@ -319,8 +331,26 @@ if __name__ == '__main__':
             grid_func=svm_grid_rbf)
     ]
 
+    estimators_linear = [
+        estimator_tuple(
+            name='Links',
+            estimator=LinksClassifier(kernel='linear', sampling='predefined', solver='tnc'),
+            kwargs_func=lambda kw: kw,
+            grid_func=links_grid_rbf),
+        estimator_tuple(
+            name='NPKLR',
+            estimator=LogisticRegressionPairwise(kernel='linear', sampling='predefined'),
+            kwargs_func=labels_links,
+            grid_func=links_grid_rbf),
+        estimator_tuple(
+            name='SVM',
+            estimator=SVC(kernel='linear'),
+            kwargs_func=labels_only,
+            grid_func=svm_grid_rbf)
+    ]
 
-    def task_generator():
+
+    def task_generator(estimators):
         for ds_name, (X, y) in datasets.iteritems():
             if issparse(X):
                 X = X.toarray()
@@ -375,5 +405,8 @@ if __name__ == '__main__':
     else:
         mapper = mp.Pool(mp.cpu_count() if args.jobs == -1 else args.jobs).imap_unordered
 
-    runner = Runner(task=task, task_generator=task_generator(), cacher=cacher, mapper=mapper)
+    runner = Runner(task=task,
+                    task_generator=task_generator(estimators_linear),
+                    cacher=cacher,
+                    mapper=mapper)
     runner.run()
