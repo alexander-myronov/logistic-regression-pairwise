@@ -229,9 +229,8 @@ class LogisticRegressionPairwise(BaseEstimator):
             self.wbeta1 = np.zeros(X1_k.shape[1])
             self.wbeta2 = np.zeros(X2_k.shape[1])
         else:
-            raise NotImplementedError()
-            self.wbeta1 = np.zeros(shape=0)
-            self.wbeta2 = np.zeros(shape=0)
+            self.wbeta1 = np.zeros(0)
+            self.wbeta2 = np.zeros(0)
 
         self.fullX = np.vstack([X, self.X1, self.X2])
         self.K = self.kernel_f(self.fullX, self.fullX)
@@ -612,8 +611,8 @@ if __name__ == '__main__':
 
     plot_moons(
         GridSearchCV(
-            LogisticRegressionPairwise(kernel='rbf', gamma='auto', sampling='predefined',
-                                       verbose=True),
+            LogisticRegressionPairwise(kernel='linear', gamma='auto', sampling='predefined',
+                                       verbose=False),
             {
                 'alpha': [100],
                 'beta': [100],
