@@ -141,7 +141,7 @@ class LinksClassifier(BaseEstimator):
             if self.verbose:
                 print('loss: traditional=%.3f, links=%.3f, norm=%.3f, unsup=%.3f' % \
                       (tr_loss, l_loss, n_loss, u_loss))
-            if time.time() - start_time > 80:
+            if time.time() - start_time > 300:
                 result_v = v
                 raise Exception('timeout')
 
@@ -185,9 +185,12 @@ class LinksClassifier(BaseEstimator):
             else:
                 raise Exception('unknown solver: %s' % self.solver)
             self.v = res
-        except Exception:
+        except Exception as e:
             self.v = result_v.ravel()
-            print('Timeout')
+            if e.message == 'timeout':
+                print('Timeout')
+            else:
+                print(e.message)
 
         self.last_loss = f(self.v)
         if self.verbose:
