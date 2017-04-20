@@ -195,7 +195,7 @@ class LinksClassifier(BaseEstimator):
             else:
                 e_type, e_value, e_tb = sys.exc_info()
                 traceback.print_exception(e_type, e_value, e_tb)
-                #print(e.message)
+                # print(e.message)
 
         self.last_loss = f(self.v)
         if self.verbose:
@@ -429,6 +429,11 @@ class LinksClassifier(BaseEstimator):
         links_loss_grad = self.links_loss_grad(X, X1, X2, z, v)
         u_loss_grad = self.unsup_loss_grad(X, X1, X2, Xu, v)
 
+        if beta is None:
+            return - 2 * alpha / max(len(y) + len(z), 1) * labeled_loss_grad.ravel() \
+                   - 2 * alpha / max(len(y) + len(z), 1) * links_loss_grad \
+                   - 2 * delta / max(len(Xu), 1) * u_loss_grad \
+                   + 2 * v_by_class.ravel()
         return - 2 * alpha / max(len(y), 1) * labeled_loss_grad.ravel() \
                - 2 * beta / max(len(z), 1) * links_loss_grad \
                - 2 * delta / max(len(Xu), 1) * u_loss_grad \
