@@ -187,7 +187,7 @@ if __name__ == '__main__':
         r'data/breast-cancer_scale.libsvm',
         r'data/australian_scale.libsvm',
         r'data/ionosphere_scale.libsvm',
-        #r'data/german.numer_scale.libsvm',
+        r'data/german.numer_scale.libsvm',
         r'data/heart_scale.libsvm',
         r'data/liver-disorders_scale.libsvm'
 

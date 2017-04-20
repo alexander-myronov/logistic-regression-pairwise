@@ -392,12 +392,13 @@ class LogisticRegressionPairwise(BaseEstimator):
         Kl2 = self.K[len(X) + len(X1):, :]
 
         lloss = -np.log(1 + np.exp(-y * np.dot(Kp, full_beta)))
-        lloss = lloss.mean()
+        lloss = lloss.sum()
         ploss = E_z1 * -1 * np.log((1 + np.exp(np.dot(Kl1, full_beta))) * \
                                    (1 + np.exp(z * np.dot(Kl2, full_beta)))) + \
                 E_z2 * -1 * np.log((1 + np.exp(-np.dot(Kl1, full_beta))) * \
                                    (1 + np.exp(-z * np.dot(Kl2, full_beta))))
-        ploss = ploss.mean()
+
+        ploss = ploss.sum()
 
         norm_loss = np.dot(full_beta.T, full_beta)
 
@@ -416,7 +417,7 @@ class LogisticRegressionPairwise(BaseEstimator):
         Vp = np.dot(Kp, full_beta)
         lloss_grad = (np.exp(-y * Vp) * y) / (1 + np.exp(-y * Vp))
         lloss_grad = Kp * lloss_grad.reshape(-1, 1)
-        lloss_grad = lloss_grad.mean(axis=0)
+        lloss_grad = lloss_grad.sum(axis=0)
 
         kl1_beta = np.dot(Kl1, full_beta)
         kl2_beta = np.dot(Kl2, full_beta)
@@ -432,7 +433,8 @@ class LogisticRegressionPairwise(BaseEstimator):
                            ((np.exp(-kl1_beta) * -kl1_prim) * (1 + np.exp(-z * kl2_beta)) +
                             (np.exp(-z * kl2_beta) * z * -kl2_prim) * (1 + np.exp(-kl1_beta)))
             ploss_grad[:, bi] = ploss_grad_i
-        ploss_grad = ploss_grad.mean(axis=0)
+
+        ploss_grad = ploss_grad.sum(axis=0)
         # ploss = E_z1 * -1 * np.log((1 +) * \
         #                            (1 + np.exp(z * np.dot(Kl2, full_beta)))) + \
         #         E_z2 * -1 * np.log((1 + np.exp(-np.dot(Kl1, full_beta))) * \
@@ -444,26 +446,26 @@ class LogisticRegressionPairwise(BaseEstimator):
                - beta / max(len(z), 1) * ploss_grad \
                + 2 * norm_loss_grad
 
-    # def get_params(self, deep=True):
-    #     return {'alpha': self.alpha,
-    #             'beta': self.beta,
-    #             'percent_pairs': self.percent_pairs,
-    #             'kernel': self.kernel,
-    #             'gamma': self.gamma,
-    #             'sampling': self.sampling,
-    #             'verbose': self.verbose,
-    #             'max_iter': self.max_iter}
-    #
-    # def set_params(self, **params):
-    #     self.alpha = params.pop('alpha', self.alpha)
-    #     self.beta = params.pop('beta', self.beta)
-    #     self.percent_pairs = params.pop('percent_pairs', self.percent_pairs)
-    #     self.gamma = params.pop('gamma', self.gamma)
-    #     self.kernel = params.pop('kernel', self.kernel)
-    #     self.sampling = params.pop('sampling', self.sampling)
-    #     self.max_iter = params.pop('max_iter', self.max_iter)
-    #     self.verbose = params.pop('verbose', self.verbose)
-    #     return self
+        # def get_params(self, deep=True):
+        #     return {'alpha': self.alpha,
+        #             'beta': self.beta,
+        #             'percent_pairs': self.percent_pairs,
+        #             'kernel': self.kernel,
+        #             'gamma': self.gamma,
+        #             'sampling': self.sampling,
+        #             'verbose': self.verbose,
+        #             'max_iter': self.max_iter}
+        #
+        # def set_params(self, **params):
+        #     self.alpha = params.pop('alpha', self.alpha)
+        #     self.beta = params.pop('beta', self.beta)
+        #     self.percent_pairs = params.pop('percent_pairs', self.percent_pairs)
+        #     self.gamma = params.pop('gamma', self.gamma)
+        #     self.kernel = params.pop('kernel', self.kernel)
+        #     self.sampling = params.pop('sampling', self.sampling)
+        #     self.max_iter = params.pop('max_iter', self.max_iter)
+        #     self.verbose = params.pop('verbose', self.verbose)
+        #     return self
 
 
 def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42):
@@ -611,7 +613,7 @@ if __name__ == '__main__':
 
     plot_moons(
         GridSearchCV(
-            LogisticRegressionPairwise(kernel='linear', gamma='auto', sampling='predefined',
+            LogisticRegressionPairwise(kernel='rbf', gamma='auto', sampling='predefined',
                                        verbose=False),
             {
                 'alpha': [100],
