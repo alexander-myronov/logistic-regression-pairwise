@@ -78,5 +78,6 @@ def labels_links(fit_kwargs):
 
 def pop_kwargs(kwargs, to_pop):
     for kw in to_pop:
-        kwargs.pop(kw)
+        if kw in kwargs:
+            kwargs.pop(kw)
     return kwargs
