@@ -71,7 +71,7 @@ datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 # In[87]:
 
 def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42,
-                  disjoint_labels_and_links=False, return_index=False):
+                  labels_and_links_separation_degree=0, return_index=False):
     """
     This function splits a dataset into 3 portions:
     1. labeled data
@@ -83,7 +83,7 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
     :param percent_links:
     :param percent_unlabeled:
     :param random_state:
-    :param disjoint_labels_and_links:
+    :param labels_and_links_separation_degree: 0 - random, 1 - at least 1 point is unlabeled, 2 - both unlabeled
     :param return_index
     :return: X(labeled), y(labels),
         X1(first point in link), X2(second point in link), z(must-link or cannot-link),
@@ -113,16 +113,18 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
 
 
     if percent_labels < 1:
-        if disjoint_labels_and_links:
-            not_links_where = np.where(~links_index)[0]
+        if labels_and_links_separation_degree == 2:
+            labels_where = np.where(~links_index)[0]
+        elif labels_and_links_separation_degree == 1:
+            labels_where = np.where(~ (choice1 & choice2))[0]
         else:
-            not_links_where = np.arange(len(y))
+            labels_where = np.arange(len(y))
         labels_choice = next(StratifiedShuffleSplit(n_splits=1,
                                                     train_size=int(percent_labels * len(y))).split(
-            X[not_links_where], y[not_links_where]))[0]
+            X[labels_where], y[labels_where]))[0]
 
         # print(not_links_where.shape)
-        labels_choice = not_links_where[labels_choice]
+        labels_choice = labels_where[labels_choice]
     else:
         raise Exception()
         # labels_choice = np.arange(0, len(X))
@@ -134,7 +136,7 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
                                     replace=False)
 
     # print(labels_index.sum(), links_index.sum(), unsup_index.sum())
-    if disjoint_labels_and_links:
+    if labels_and_links_separation_degree == 2:
         assert (labels_index | links_index | unsup_index).sum() == \
                len(y) * (percent_labels + percent_links + percent_unlabeled)
 
@@ -148,7 +150,7 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
 
 
 def split_dataset_stable(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42,
-                         disjoint_labels_and_links=True, return_index=False):
+                         labels_and_links_separation_degree=0, return_index=False):
     """
     This function splits a dataset into 3 portions:
     1. labeled data
@@ -163,14 +165,14 @@ def split_dataset_stable(X, y, percent_labels, percent_links, percent_unlabeled,
     :param percent_links:
     :param percent_unlabeled:
     :param random_state:
-    :param disjoint_labels_and_links:
+    :param labels_and_links_separation_degree: 0 - random, 1 - at least 1 point is unlabeled, 2 - both unlabeled
     :param return_index:
     :return: X(labeled), y(labels),
         X1(first point in link), X2(second point in link), z(must-link or cannot-link),
         Xu(unlabeled)
     """
     max_percent_labels, max_percent_links, max_percent_unlabeled = \
-        get_max_percents(y, disjoint_labels_links=disjoint_labels_and_links)
+        get_max_percents(y, disjoint_labels_links=labels_and_links_separation_degree)
 
     assert percent_labels <= max_percent_labels \
            and percent_links <= max_percent_links \
@@ -182,7 +184,7 @@ def split_dataset_stable(X, y, percent_labels, percent_links, percent_unlabeled,
                       percent_links=max_percent_links,
                       percent_unlabeled=max_percent_unlabeled,
                       random_state=random_state,
-                      disjoint_labels_and_links=disjoint_labels_and_links,
+                      labels_and_links_separation_degree=labels_and_links_separation_degree,
                       return_index=True)
 
     labels = np.where(labels)[0]

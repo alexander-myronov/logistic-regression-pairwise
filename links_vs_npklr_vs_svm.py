@@ -1,10 +1,8 @@
 from __future__ import division, print_function
-import traceback
-from scipy.sparse import issparse
-from sklearn import clone
-import sys
 
-from sklearn.model_selection import ParameterSampler
+import imp
+
+from scipy.sparse import issparse
 from sklearn.svm import SVC
 
 from new_experiment_runner.cacher import CSVCacher
@@ -16,31 +14,22 @@ __author__ = 'myronov'
 
 # In[1]:
 import argparse
-import datetime
 
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 
 import os
 import itertools
 from collections import OrderedDict, namedtuple
-from functools import partial
 
-from sklearn.datasets import load_svmlight_file, make_circles, make_moons
+from sklearn.datasets import load_svmlight_file
 
 from links import LinksClassifier
-from logit import LogisticRegressionPairwise, LogisticRegression
+from logit import LogisticRegressionPairwise
 
-from sklearn.model_selection import ParameterGrid, StratifiedShuffleSplit, GridSearchCV, \
-    fit_grid_point, ShuffleSplit
-
-from tqdm import tqdm as tqdm
+from sklearn.model_selection import StratifiedShuffleSplit, ShuffleSplit
 
 from start_sensitivity import split_dataset_stable
 import multiprocess as mp
-
-from scipy.stats import expon
 
 estimator_tuple = namedtuple('estimator_tuple',
                              ['name', 'estimator', 'kwargs_func', 'grid_func'])
@@ -73,67 +62,6 @@ def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2):
         yield (tr_y, tr_z, tr_u), (te_y, te_z, te_u)
 
 
-def get_alpha_distribution(method, n):
-    if method == 1:
-        return expon(1 / n, n)  # 'exp(n)'
-    if method == 2:
-        return expon(1 / (10 * n), 10 * n)
-    if method == 3:
-        return expon(1 / n, n)
-
-
-def get_beta_distribution(method, n):
-    if method == 1:
-        return expon(1 / n, n)
-    if method == 2:
-        return expon(1 / (5 * n), 5 * n)
-    if method == 3:
-        return expon(1 / n, n)
-
-
-def get_delta_distribution(method, n):
-    if method == 1:
-        return expon(1 / n, n)
-    if method == 2:
-        return expon(1 / n, n)
-    if method == 3:
-        return expon(1, 1)
-
-
-def links_grid_rbf(X, y, fit_kwargs):
-    from links_vs_npklr_vs_svm import links_grid_linear
-    grid = links_grid_linear(X, y, fit_kwargs)
-    grid['gamma'] = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
-    return grid
-
-
-def links_grid_linear(X, y, fit_kwargs):
-    from links_vs_npklr_vs_svm import get_alpha_distribution, get_beta_distribution, \
-        get_delta_distribution
-    grid = {
-        'alpha': get_alpha_distribution(2, len(y)),
-    }
-    if 'z' in fit_kwargs and len(fit_kwargs['z']) > 0:
-        grid['beta'] = get_beta_distribution(2, len(fit_kwargs['z']))
-    if 'Xu' in fit_kwargs and len(fit_kwargs['Xu']) > 0:
-        grid['delta'] = get_delta_distribution(2, len(fit_kwargs['Xu']))
-    return grid
-
-
-def svm_grid_rbf(X, y, fit_kwargs):
-    from links_vs_npklr_vs_svm import svm_grid_linear
-    grid = svm_grid_linear(X, y, fit_kwargs)
-    grid['gamma'] = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
-    return grid
-
-
-def svm_grid_linear(X, y, fit_kwargs):
-    from links_vs_npklr_vs_svm import get_alpha_distribution
-    return {
-        'C': get_alpha_distribution(2, len(y)),
-    }
-
-
 def task(context, **kwargs):
     from start_sensitivity import split_dataset_stable
     from new_experiment_runner.cacher import CSVCacher
@@ -153,7 +81,7 @@ def task(context, **kwargs):
         percent_labels=context['percent_labels'],
         percent_links=context['percent_links'],
         percent_unlabeled=context['percent_unlabeled'],
-        disjoint_labels_and_links=False,
+        labels_and_links_separation_degree=1,
         random_state=42)
 
     # if len(cacher.get(context) > 1):
@@ -203,6 +131,17 @@ def task(context, **kwargs):
 
     rs_df = rs_cacher.dataframe
     # print(rs_df.shape)
+
+    fit_kwargs = {
+        'X1': X1_tr,
+        'X2': X2_tr,
+        'z': z_tr,
+        'Xu': Xu_tr,
+    }
+    fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
+    grid = estimator_tuple.grid_func(X_tr,
+                                     y_tr, fit_kwargs)
+
     param_names = grid.keys()
     grouped = rs_df['score']. \
         groupby(by=map(lambda param_name: rs_df[param_name], param_names)).mean()
@@ -210,6 +149,8 @@ def task(context, **kwargs):
     # print(best_params)
     cv_score = grouped.ix[best_params]
 
+    if not hasattr(best_params, '__iter__'):
+        best_params = [best_params]
     best_params = {name: best_params[i] for i, name in enumerate(param_names)}
     estimator_best = clone(estimator_tuple.estimator)
     estimator_best.set_params(**best_params)
@@ -227,10 +168,10 @@ def task(context, **kwargs):
     return result
 
 
-def validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=False):
+def validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=0):
     try:
         _ = split_dataset_stable(X, y, p_labels, p_links, p_unlabeled,
-                                 disjoint_labels_and_links=disjoint,
+                                 labels_and_links_separation_degree=disjoint,
                                  return_index=True)
         return True
     except:
@@ -281,10 +222,14 @@ if __name__ == '__main__':
     parser.add_argument('--jobs', type=int, default=1,
                         help='number of parallel jobs, -1 for all')
 
-    parser.add_argument('--file', type=str, default='data/results_semi.csv',
+    parser.add_argument('--file', type=str, default='data/links_npklr_svm.csv',
                         help='folder to store results')
 
+    parser.add_argument('--estimators_file', type=str,
+                        help='python file with list of estimator_tuples called `estimators`')
+
     args = parser.parse_args()
+
     cacher = CSVCacher(filename=args.file)
 
     context = OrderedDict(
@@ -295,59 +240,14 @@ if __name__ == '__main__':
         rs_iters=args.rs_iters,
         cv_random_state=42)
 
-    percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_links_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_labels_range = [0.3] * 6
+    percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     percent_unlabeled_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-
-    def labels_only(fit_kwargs):
-        fit_kwargs.pop('X1')
-        fit_kwargs.pop('X2')
-        fit_kwargs.pop('z')
-        fit_kwargs.pop('Xu')
-        return fit_kwargs
-
-
-    def labels_links(fit_kwargs):
-        fit_kwargs.pop('Xu')
-        return fit_kwargs
-
-
-    estimators = [
-        estimator_tuple(
-            name='Links',
-            estimator=LinksClassifier(kernel='rbf', sampling='predefined', solver='tnc'),
-            kwargs_func=lambda kw: kw,
-            grid_func=links_grid_rbf),
-        estimator_tuple(
-            name='NPKLR',
-            estimator=LogisticRegressionPairwise(kernel='rbf', sampling='predefined'),
-            kwargs_func=labels_links,
-            grid_func=links_grid_rbf),
-        estimator_tuple(
-            name='SVM',
-            estimator=SVC(kernel='rbf'),
-            kwargs_func=labels_only,
-            grid_func=svm_grid_rbf)
-    ]
-
-    estimators_linear = [
-        estimator_tuple(
-            name='Links',
-            estimator=LinksClassifier(kernel='linear', sampling='predefined', solver='tnc'),
-            kwargs_func=lambda kw: kw,
-            grid_func=links_grid_rbf),
-        estimator_tuple(
-            name='NPKLR',
-            estimator=LogisticRegressionPairwise(kernel='linear', sampling='predefined'),
-            kwargs_func=labels_links,
-            grid_func=links_grid_rbf),
-        estimator_tuple(
-            name='SVM',
-            estimator=SVC(kernel='linear'),
-            kwargs_func=labels_only,
-            grid_func=svm_grid_rbf)
-    ]
+    assert args.estimators_file is not None
+    estimators_module = imp.load_source('estimators', args.estimators_file)
+    estimators = estimators_module.estimators
 
 
     def task_generator(estimators):
@@ -360,15 +260,15 @@ if __name__ == '__main__':
                 context['estimator'] = estimator_tuple.name
 
                 if isinstance(estimator_tuple.estimator, LinksClassifier):
-                    links_and_labels = itertools.izip(percent_labels_range, percent_links_range)
+                    labels_and_links = itertools.izip(percent_labels_range, percent_links_range)
                     percents = [(labels, links, unlabeled) for (labels, links), unlabeled in
-                                itertools.product(links_and_labels, percent_unlabeled_range)]
+                                itertools.product(labels_and_links, percent_unlabeled_range)]
                 elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
                     percents = itertools.izip_longest(percent_labels_range,
                                                       percent_links_range,
                                                       [], fillvalue=0.0)
                 elif isinstance(estimator_tuple.estimator, SVC):
-                    percents = itertools.izip_longest(percent_labels_range,
+                    percents = itertools.izip_longest(np.unique(percent_labels_range),
                                                       [],
                                                       [], fillvalue=0.0)
                 else:
@@ -378,7 +278,7 @@ if __name__ == '__main__':
 
                 for p_labels, p_links, p_unlabeled in percents:
 
-                    if not validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=False):
+                    if not validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=1):
                         continue
 
                     context['percent_labels'] = p_labels
@@ -406,7 +306,7 @@ if __name__ == '__main__':
         mapper = mp.Pool(mp.cpu_count() if args.jobs == -1 else args.jobs).imap_unordered
 
     runner = Runner(task=task,
-                    task_generator=task_generator(estimators_linear),
+                    task_generator=task_generator(estimators),
                     cacher=cacher,
                     mapper=mapper)
     runner.run()

@@ -327,10 +327,20 @@ class LinksClassifier(BaseEstimator):
         u_loss = self.unsup_loss(Xu, v)
 
         if split:
+            if beta is None:  # joint loss for links and labels - i.e. same cost
+                return alpha / max(len(y) + len(z), 1) * labeled_loss, \
+                       alpha / max(len(y) + len(z), 1) * link_loss, \
+                       delta / max(len(Xu), 1) * u_loss, \
+                       norm_loss
             return alpha / max(len(y), 1) * labeled_loss, \
                    beta / max(len(z), 1) * link_loss, \
                    delta / max(len(Xu), 1) * u_loss, \
                    norm_loss
+        if beta is None:
+            return alpha / max(len(y) + len(z), 1) * labeled_loss \
+                   + alpha / max(len(y) + len(z), 1) * link_loss \
+                   + delta / max(len(Xu), 1) * u_loss \
+                   + norm_loss
         return alpha / max(len(y), 1) * labeled_loss \
                + beta / max(len(z), 1) * link_loss \
                + delta / max(len(Xu), 1) * u_loss \

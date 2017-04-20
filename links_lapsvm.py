@@ -197,7 +197,7 @@ if __name__ == '__main__':
                         percent_labels=context['percent_labels'],
                         percent_links=context['percent_links'],
                         percent_unlabeled=context['percent_unlabeled'],
-                        disjoint_labels_and_links=False,
+                        labels_and_links_separation_degree=False,
                         random_state=42)
                     if do_random_search:
                         rs_contexts = []

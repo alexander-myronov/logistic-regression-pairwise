@@ -98,7 +98,7 @@ def task(context, **kwargs):
             percent_labels=context['percent_labels'],
             percent_links=context['percent_links'],
             percent_unlabeled=context['percent_unlabeled'],
-            disjoint_labels_and_links=False,
+            labels_and_links_separation_degree=False,
             random_state=42)
 
         estimator = LinksClassifier(sampling='predefined',
