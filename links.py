@@ -1,8 +1,11 @@
 from __future__ import division, print_function, with_statement
+
+import traceback
 from functools import partial
 import numpy as np
 import pandas as pd
 import scipy.optimize
+import sys
 from scipy.spatial.distance import cdist, squareform, pdist
 from sklearn.base import BaseEstimator
 import time
@@ -190,7 +193,9 @@ class LinksClassifier(BaseEstimator):
             if e.message == 'timeout':
                 print('Timeout')
             else:
-                print(e.message)
+                e_type, e_value, e_tb = sys.exc_info()
+                traceback.print_exception(e_type, e_value, e_tb)
+                #print(e.message)
 
         self.last_loss = f(self.v)
         if self.verbose:
