@@ -27,7 +27,7 @@ from plot import plot_2d_slice
 
 class LogisticRegression(BaseEstimator):
     def __init__(self, alpha, kernel='linear', gamma='auto'):
-        raise DeprecationWarning('this stuff is way too old')
+        # raise DeprecationWarning('this stuff is way too old')
         self.beta = None
         self.alpha = alpha
         self.X = None
@@ -82,9 +82,8 @@ class LogisticRegression(BaseEstimator):
         try:
             res = scipy.optimize.fmin_tnc(f,
                                           self.beta,
-                                          # approx_grad=True,
+                                          approx_grad=False,
                                           fprime=fprime,
-                                          # maxfun=10000,
                                           maxfun=100000,
                                           disp=0,
                                           ftol=1e-4)
@@ -146,18 +145,18 @@ class LogisticRegression(BaseEstimator):
         the_loss_grad = the_loss_grad.mean(axis=0)
         return -the_loss_grad + 2 * alpha * beta
 
-    def get_params(self, deep=True):
-        return {
-            'alpha': self.alpha,
-            'kernel': self.kernel,
-            'gamma': self.gamma,
-        }
-
-    def set_params(self, **params):
-        self.alpha = params.pop('alpha', 1)
-        self.gamma = params.pop('gamma', 'auto')
-        self.kernel = params.pop('kernel', 'linear')
-        return self
+    # def get_params(self, deep=True):
+    #     return {
+    #         'alpha': self.alpha,
+    #         'kernel': self.kernel,
+    #         'gamma': self.gamma,
+    #     }
+    #
+    # def set_params(self, **params):
+    #     self.alpha = params.pop('alpha', 1)
+    #     self.gamma = params.pop('gamma', 'auto')
+    #     self.kernel = params.pop('kernel', 'linear')
+    #     return self
 
 
 class LogisticRegressionPairwise(BaseEstimator):
