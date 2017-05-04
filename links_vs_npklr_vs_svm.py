@@ -260,7 +260,7 @@ if __name__ == '__main__':
         cv_random_state=42)
 
     # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [0.3] * 6
+    percent_labels_range = [0.03] * 6
     percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     percent_unlabeled_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
