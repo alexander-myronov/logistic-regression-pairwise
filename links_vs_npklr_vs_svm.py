@@ -1,6 +1,7 @@
 from __future__ import division, print_function
 
 import imp
+import re
 
 from scipy.sparse import issparse
 from sklearn.svm import SVC
@@ -182,29 +183,37 @@ if __name__ == '__main__':
 
     mp.freeze_support()
 
-    datafiles_toy = [
-        r'data/diabetes_scale.libsvm',
-        r'data/breast-cancer_scale.libsvm',
-        r'data/australian_scale.libsvm',
-        r'data/ionosphere_scale.libsvm',
-        r'data/german.numer_scale.libsvm',
-        r'data/heart_scale.libsvm',
-        r'data/liver-disorders_scale.libsvm'
-
-    ]
+    # datafiles_toy = [
+    #     r'data/diabetes_scale.libsvm',
+    #     r'data/breast-cancer_scale.libsvm',
+    #     r'data/australian_scale.libsvm',
+    #     r'data/ionosphere_scale.libsvm',
+    #     r'data/german.numer_scale.libsvm',
+    #     r'data/heart_scale.libsvm',
+    #     r'data/liver-disorders_scale.libsvm'
+    #
+    # ]
 
 
     def load_ds(fname):
-        X, y = load_svmlight_file(fname)
+        n_features = None
+        with open(fname, 'r') as svmlight_file:
+            next(svmlight_file)
+            next(svmlight_file)
+            next(svmlight_file)
+            n_features_line = next(svmlight_file)
+
+            match = re.match('#\s([0-9]+)', n_features_line)
+            if match:
+                n_features = int(match.groups()[0])
+        X, y = load_svmlight_file(fname, n_features=n_features)
         if issparse(X):
             X = X.toarray()
         y[y == -1] = 0
         return X, y
 
 
-    datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
-                             load_ds(f))
-                            for f in datafiles_toy])
+
 
     parser = argparse.ArgumentParser(description='Model evaluation script')
     parser.add_argument('--cv_folds', type=int, default=3,
@@ -227,8 +236,18 @@ if __name__ == '__main__':
 
     parser.add_argument('--estimators_file', type=str,
                         help='python file with list of estimator_tuples called `estimators`')
+    parser.add_argument('--datasets_file', type=str,
+                        help='text file with .libsvm files to be used in the experiment')
 
     args = parser.parse_args()
+
+    datasets_file = args.datasets_file
+    with open(datasets_file, 'r') as f:
+        datafiles = [s.strip() for s in  f.readlines()]
+
+    datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
+                             load_ds(f))
+                            for f in datafiles])
 
     cacher = CSVCacher(filename=args.file)
 
