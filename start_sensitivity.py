@@ -212,7 +212,7 @@ def get_max_percents(y, disjoint_labels_links):
     :return: percent_labels, percent_links, percent_unlabeled
     """
     if disjoint_labels_links:
-        return 0.3, 0.3, 0.4
+        return 0.4, 0.4, 0.4
     else:
         return 0.5, 0.5, 0.5
 
