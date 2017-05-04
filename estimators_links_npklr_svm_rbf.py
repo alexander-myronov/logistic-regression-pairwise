@@ -21,7 +21,7 @@ estimators = [
                                               to_pop=['beta'])),
     estimator_tuple(
         name='NPKLR(rbf)',
-        estimator=LogisticRegressionPairwise(kernel='rbf', sampling='predefined'),
+        estimator=LogisticRegressionPairwise(kernel='rbf', sampling='predefined', max_iter=25),
         kwargs_func=labels_links,
         grid_func=partial(links_grid_rbf, method=4)),
     estimator_tuple(

@@ -85,7 +85,7 @@ class LogisticRegression(BaseEstimator):
                                           # approx_grad=True,
                                           fprime=fprime,
                                           # maxfun=10000,
-                                          maxfun=100000,
+                                          maxfun=1000,
                                           disp=0,
                                           ftol=1e-4)
             res = res[0]
@@ -265,7 +265,7 @@ class LogisticRegressionPairwise(BaseEstimator):
                                           full_beta,
                                           fprime=fprime,
                                           maxfun=500,
-                                          ftol=1e-6,
+                                          ftol=1e-4,
                                           disp=0
                                           )
             full_beta = opt[0]
