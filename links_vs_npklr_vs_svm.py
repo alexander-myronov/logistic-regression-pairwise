@@ -45,7 +45,7 @@ def accuracy_scorer(estimator, X, y):
     return accuracy_score(y_true, y_pred)
 
 
-def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2):
+def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2, labels_special_case=False):
     y_split = []
     z_split = []
     u_split = []
@@ -60,6 +60,12 @@ def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2):
                                    z_split,
                                    u_split,
                                    fillvalue=(np.zeros(0, dtype=int), np.zeros(0, dtype=int))):
+        if labels_special_case:
+            res = np.zeros(len(np.unique(y)), dtype=int)
+            for i, y_val in enumerate(np.unique(y)):
+                choice = np.random.choice(tr_y[y[tr_y] == y_val], 1)
+                res[i] = choice
+            tr_y = res
         yield (tr_y, tr_z, tr_u), (te_y, te_z, te_u)
 
 
@@ -103,7 +109,8 @@ def task(context, **kwargs):
             z_tr,
             Xu_tr,
             n_splits=context['rs_splits'],
-            test_size=context['rs_test_size'])):
+            test_size=context['rs_test_size'],
+            labels_special_case=context['percent_labels'] == -1)):
         rs_context['rs_split'] = i_inner_split
 
         fit_kwargs = {
@@ -149,6 +156,7 @@ def task(context, **kwargs):
     best_params = grouped.argmax()
     # print(best_params)
     cv_score = grouped.ix[best_params]
+    grouped = None
 
     if not hasattr(best_params, '__iter__'):
         best_params = [best_params]
@@ -159,6 +167,15 @@ def task(context, **kwargs):
     # print(context, 'fitting on full train set')
     fit_kwargs = dict(X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
     fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
+    if context['percent_labels'] == -1:
+        res = np.zeros(len(np.unique(y)), dtype=int)
+        full_index = np.arange(len(y_tr))
+        for i, y_val in enumerate(np.unique(y)):
+            choice = np.random.choice(full_index[y_tr == y_val], 1)
+            res[i] = choice
+        y_tr = y_tr[res]
+        X_tr = X_tr[res]
+        #print(y_tr)
     estimator_best.fit(X_tr, y_tr, **fit_kwargs)
 
     test_score = accuracy_scorer(estimator_best, X[test], y[test])
@@ -182,6 +199,7 @@ def validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=0):
 if __name__ == '__main__':
 
     mp.freeze_support()
+
 
     # datafiles_toy = [
     #     r'data/diabetes_scale.libsvm',
@@ -213,8 +231,6 @@ if __name__ == '__main__':
         return X, y
 
 
-
-
     parser = argparse.ArgumentParser(description='Model evaluation script')
     parser.add_argument('--cv_folds', type=int, default=3,
                         help='cross validation number of folds')
@@ -243,7 +259,7 @@ if __name__ == '__main__':
 
     datasets_file = args.datasets_file
     with open(datasets_file, 'r') as f:
-        datafiles = [s.strip() for s in  f.readlines()]
+        datafiles = [s.strip() for s in f.readlines()]
 
     datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
                              load_ds(f))
@@ -260,7 +276,7 @@ if __name__ == '__main__':
         cv_random_state=42)
 
     # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [ 0.03, 0.05, 0.1, 0.2, 0.3]
+    percent_labels_range = [0.03, 0.05, 0.1, 0.2, 0.3]
     percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     percent_unlabeled_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
@@ -278,16 +294,23 @@ if __name__ == '__main__':
             for estimator_tuple in estimators:
                 context['estimator'] = estimator_tuple.name
 
+                required_minumum_percent_labels = -1  # special value
                 if isinstance(estimator_tuple.estimator, LinksClassifier):
-                    labels_and_links = itertools.izip(percent_labels_range, percent_links_range)
+
+                    labels_and_links = itertools.izip(
+                        [required_minumum_percent_labels] * len(percent_links_range),
+                        percent_links_range)
                     percents = [(labels, links, unlabeled) for (labels, links), unlabeled in
                                 itertools.product(labels_and_links, percent_unlabeled_range)]
                 elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
-                    percents = itertools.izip_longest(percent_labels_range,
-                                                      percent_links_range,
-                                                      [], fillvalue=0.0)
+                    percents = itertools.izip_longest(
+                        [required_minumum_percent_labels] * len(percent_links_range),
+                        percent_links_range,
+                        [],
+                        fillvalue=0.0)
                 elif isinstance(estimator_tuple.estimator, SVC):
-                    percents = itertools.izip_longest(np.unique(percent_labels_range),
+                    percents = itertools.izip_longest([required_minumum_percent_labels],
+                                                      # np.unique(percent_labels_range),
                                                       [],
                                                       [], fillvalue=0.0)
                 else:
@@ -297,8 +320,8 @@ if __name__ == '__main__':
 
                 for p_labels, p_links, p_unlabeled in percents:
 
-                    if not validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=1):
-                        continue
+                    # if not validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=1):
+                    #     continue
 
                     context['percent_labels'] = p_labels
                     context['percent_links'] = p_links

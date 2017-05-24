@@ -19,6 +19,8 @@ from scipy.sparse import issparse
 from sklearn.datasets import load_svmlight_file, make_circles, make_moons
 import sys
 
+from sklearn.model_selection import ShuffleSplit
+
 from links import LinksClassifier
 from logit import LogisticRegressionPairwise, LogisticRegression
 
@@ -192,11 +194,41 @@ def split_dataset_stable(X, y, percent_labels, percent_links, percent_unlabeled,
     links2 = np.where(links2)[0]
     unsup = np.where(unsup)[0]
 
-    labels = labels[:int(len(y) * percent_labels)]
-    links1 = links1[:int(len(y) * percent_links)]
-    links2 = links2[:int(len(y) * percent_links)]
-    z = z[:int(len(y) * percent_links)]
-    unsup = unsup[:int(len(y) * percent_unlabeled)]
+    if percent_labels == -1:
+        labels_choice = np.arange(len(labels))
+    elif percent_labels == 0:
+        labels_choice = []
+    else:
+        _, labels_choice = next(StratifiedShuffleSplit(n_splits=1,
+                                                       test_size=percent_labels,
+                                                       random_state=42).split(
+            np.zeros(shape=(len(labels), 0)),
+            y[labels]))
+
+    labels = labels[labels_choice]
+
+    if percent_links == 0:
+        links_choice = []
+    else:
+        _, links_choice = next(StratifiedShuffleSplit(n_splits=1,
+                                                      test_size=percent_links,
+                                                      random_state=42).split(
+            np.zeros(shape=(len(z), 0)),
+            z))
+    links1 = links1[links_choice]
+    links2 = links2[links_choice]
+    z = z[links_choice]
+
+    if percent_unlabeled == 0:
+        unsup_choice = []
+    else:
+        _, unsup_choice = next(ShuffleSplit(n_splits=1,
+                                            test_size=percent_unlabeled,
+                                            random_state=42).split(
+            np.zeros(shape=(len(unsup), 0)),
+            unsup))
+
+    unsup = unsup[unsup_choice]
     if return_index:
         return labels, links1, links2, z, unsup
     return X[labels], y[labels], X[links1], X[links2], z, X[unsup]
