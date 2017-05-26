@@ -119,6 +119,7 @@ class LinksClassifier(BaseEstimator):
 
         for _ in xrange(kwargs.pop('n_gradient_checks', 0)):
             v_test = np.random.normal(size=self.v.ravel().shape)
+            #v_test = np.zeros(shape=self.v.ravel().shape)
             # num_grad_lloss = scipy.optimize.approx_fprime(
             #     v_test,
             #     f_lloss,
@@ -126,6 +127,8 @@ class LinksClassifier(BaseEstimator):
             # an_grad_lloss = fprime_lloss(v_test)
             # err = np.abs(num_grad_lloss - an_grad_lloss)
             # print('lloss gradient error: %f' % np.sum(err ** 2))
+            # f = partial(self.links_loss, self.X1, self.X2, self.z)
+            # fprime = partial(self.links_loss_grad, X, self.X1, self.X2, self.z)
 
             num_grad_all = scipy.optimize.approx_fprime(
                 v_test,
@@ -478,7 +481,8 @@ class LinksClassifier(BaseEstimator):
                           probs_i[:, l].reshape(-1, 1) * prob_grad_j
                 link_loss_grad_by_class_sum2[:, l] = p2_grad
             grad = (z - link_loss_grad_by_class_sum1.sum(axis=1)).reshape(-1, 1) * \
-                   link_loss_grad_by_class_sum2.sum(axis=1)
+                   (link_loss_grad_by_class_sum2[:, 0] + link_loss_grad_by_class_sum2[: ,1])
+            # link_loss_grad_by_class_sum2.sum(axis=1)
             links_loss_grad[k] = np.sum(grad, axis=0)
         return links_loss_grad.ravel()
 

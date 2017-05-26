@@ -145,18 +145,18 @@ class LogisticRegression(BaseEstimator):
         the_loss_grad = the_loss_grad.mean(axis=0)
         return -the_loss_grad + 2 * alpha * beta
 
-    # def get_params(self, deep=True):
-    #     return {
-    #         'alpha': self.alpha,
-    #         'kernel': self.kernel,
-    #         'gamma': self.gamma,
-    #     }
-    #
-    # def set_params(self, **params):
-    #     self.alpha = params.pop('alpha', 1)
-    #     self.gamma = params.pop('gamma', 'auto')
-    #     self.kernel = params.pop('kernel', 'linear')
-    #     return self
+        # def get_params(self, deep=True):
+        #     return {
+        #         'alpha': self.alpha,
+        #         'kernel': self.kernel,
+        #         'gamma': self.gamma,
+        #     }
+        #
+        # def set_params(self, **params):
+        #     self.alpha = params.pop('alpha', 1)
+        #     self.gamma = params.pop('gamma', 'auto')
+        #     self.kernel = params.pop('kernel', 'linear')
+        #     return self
 
 
 class LogisticRegressionPairwise(BaseEstimator):
@@ -223,16 +223,21 @@ class LogisticRegressionPairwise(BaseEstimator):
         X_k = self.kernel_f(X, X)
         X1_k = self.kernel_f(self.X1, self.X1)
         X2_k = self.kernel_f(self.X2, self.X2)
-        self.wbeta = np.zeros(X_k.shape[1])
-        if self.kernel != 'linear':
-            self.wbeta1 = np.zeros(X1_k.shape[1])
-            self.wbeta2 = np.zeros(X2_k.shape[1])
-        else:
-            self.wbeta1 = np.zeros(0)
-            self.wbeta2 = np.zeros(0)
 
         self.fullX = np.vstack([X, self.X1, self.X2])
         self.K = self.kernel_f(self.fullX, self.fullX)
+
+        means = np.mean(self.K, axis=0)
+        stds = np.std(self.K, axis=0)
+
+        self.wbeta = np.random.normal(loc=means, scale=stds,
+                                      size=X_k.shape[1])  # np.zeros(X_k.shape[1])
+        if self.kernel != 'linear':
+            self.wbeta1 = np.random.normal(loc=means, scale=stds, size=X1_k.shape[1])
+            self.wbeta2 = np.random.normal(loc=means, scale=stds, size=X2_k.shape[1])
+        else:
+            self.wbeta1 = np.zeros(0)
+            self.wbeta2 = np.zeros(0)
 
         # EM
         prev_loss = 0

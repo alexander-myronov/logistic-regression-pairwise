@@ -45,6 +45,15 @@ def accuracy_scorer(estimator, X, y):
     return accuracy_score(y_true, y_pred)
 
 
+def adj_rand_scorer(estimator, X, y):
+    import numpy as np
+    from sklearn.metrics import adjusted_rand_score
+    y_pred = estimator.predict(X)
+    y_true = np.copy(y)
+    y_true[y_true == -1] = 0
+    return adjusted_rand_score(y_true, y_pred)
+
+
 def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2, labels_special_case=False):
     y_split = []
     z_split = []
@@ -72,9 +81,10 @@ def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2, labels_special_
 def task(context, **kwargs):
     from start_sensitivity import split_dataset_stable
     from new_experiment_runner.cacher import CSVCacher
-    from links_vs_npklr_vs_svm import split_datasets, accuracy_scorer
+    from links_vs_npklr_vs_svm import split_datasets, accuracy_scorer, adj_rand_scorer
     from sklearn.model_selection import ParameterSampler
     from sklearn.base import clone
+    import numpy as np
     estimator_tuple = kwargs.pop('estimator')
 
     X = kwargs.pop('X')
@@ -94,7 +104,13 @@ def task(context, **kwargs):
     # if len(cacher.get(context) > 1):
     #     continue
 
-
+    scorer = context['scorer']
+    if scorer == 'accuracy':
+        scorer = accuracy_scorer
+    elif scorer == 'adj_rand':
+        scorer = adj_rand_scorer
+    else:
+        raise Exception('unknown scorer')
 
     rs_cacher = CSVCacher(filename=None)
     rs_context = {}
@@ -133,7 +149,7 @@ def task(context, **kwargs):
             estimator0.fit(X_tr[tr_y],
                            y_tr[tr_y],
                            **fit_kwargs)
-            score = accuracy_scorer(estimator0, X_tr[te_y], y_tr[te_y])
+            score = scorer(estimator0, X_tr[te_y], y_tr[te_y])
 
             rs_cacher.set(rs_context, {'score': score})
 
@@ -175,10 +191,10 @@ def task(context, **kwargs):
             res[i] = choice
         y_tr = y_tr[res]
         X_tr = X_tr[res]
-        #print(y_tr)
+        # print(y_tr)
     estimator_best.fit(X_tr, y_tr, **fit_kwargs)
 
-    test_score = accuracy_scorer(estimator_best, X[test], y[test])
+    test_score = scorer(estimator_best, X[test], y[test])
 
     result = dict(best_params)
     result['cv_score'] = cv_score
@@ -273,10 +289,15 @@ if __name__ == '__main__':
         cv_test_size=args.cv_test_size,
         cv_splits=args.cv_folds,
         rs_iters=args.rs_iters,
-        cv_random_state=42)
+        cv_random_state=42,
+        scorer='accuracy')
 
     # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [0.03, 0.05, 0.1, 0.2, 0.3]
+    percent_labels_range = [-1] * 5
+    percent_links_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_unlabeled_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+
+    percent_labels_range = [-1] * 6
     percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
     percent_unlabeled_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
@@ -294,23 +315,21 @@ if __name__ == '__main__':
             for estimator_tuple in estimators:
                 context['estimator'] = estimator_tuple.name
 
-                required_minumum_percent_labels = -1  # special value
                 if isinstance(estimator_tuple.estimator, LinksClassifier):
 
                     labels_and_links = itertools.izip(
-                        [required_minumum_percent_labels] * len(percent_links_range),
+                        percent_labels_range,
                         percent_links_range)
                     percents = [(labels, links, unlabeled) for (labels, links), unlabeled in
                                 itertools.product(labels_and_links, percent_unlabeled_range)]
                 elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
                     percents = itertools.izip_longest(
-                        [required_minumum_percent_labels] * len(percent_links_range),
+                        percent_labels_range,
                         percent_links_range,
                         [],
                         fillvalue=0.0)
                 elif isinstance(estimator_tuple.estimator, SVC):
-                    percents = itertools.izip_longest([required_minumum_percent_labels],
-                                                      # np.unique(percent_labels_range),
+                    percents = itertools.izip_longest(np.unique(percent_labels_range),
                                                       [],
                                                       [], fillvalue=0.0)
                 else:

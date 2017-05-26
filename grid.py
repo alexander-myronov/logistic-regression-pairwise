@@ -44,9 +44,24 @@ def links_grid_rbf(X, y, fit_kwargs, method=2):
 def links_grid_linear(X, y, fit_kwargs, method=2):
     from grid import get_alpha_distribution, get_beta_distribution, \
         get_delta_distribution
-    grid = {
-        'alpha': get_alpha_distribution(method, len(y)),
-    }
+    grid = {}
+    if len(y) > 0:
+        grid['alpha'] = get_alpha_distribution(method, len(y))
+
+    if 'z' in fit_kwargs and len(fit_kwargs['z']) > 0:
+        grid['beta'] = get_beta_distribution(method, len(fit_kwargs['z']))
+    if 'Xu' in fit_kwargs and len(fit_kwargs['Xu']) > 0:
+        grid['delta'] = get_delta_distribution(method, len(fit_kwargs['Xu']))
+    return grid
+
+
+def links_grid_linear_no_labels(X, y, fit_kwargs, method=2):
+    from grid import get_alpha_distribution, get_beta_distribution, \
+        get_delta_distribution
+    grid = {}
+    if len(y) > 0:
+        grid['alpha'] = [0]
+
     if 'z' in fit_kwargs and len(fit_kwargs['z']) > 0:
         grid['beta'] = get_beta_distribution(method, len(fit_kwargs['z']))
     if 'Xu' in fit_kwargs and len(fit_kwargs['Xu']) > 0:
