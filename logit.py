@@ -212,8 +212,11 @@ class LogisticRegressionPairwise(BaseEstimator):
 
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         self.y = np.copy(y)
-        assert len(np.unique(y)) == 2
-        self.y[self.y == 0] = -1
+        # if 'n_classes' in kwargs:
+        #     self.n_classes = kwargs['n_classes']
+
+        if len(self.y) > 0:
+            self.y[self.y == 0] = -1
 
         self.X1, self.X2, z = self.sampling_f(X, y, **kwargs)
         self.z = np.copy(z)

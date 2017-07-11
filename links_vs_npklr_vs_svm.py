@@ -92,6 +92,7 @@ def task(context, **kwargs):
     train = kwargs.pop('train')
     test = kwargs.pop('test')
     X_train, y_train = X[train], y[train]
+    n_classes = len(np.unique(y))
 
     X_tr, y_tr, X1_tr, X2_tr, z_tr, Xu_tr = split_dataset_stable(
         X_train, y_train,
@@ -126,7 +127,8 @@ def task(context, **kwargs):
             Xu_tr,
             n_splits=context['rs_splits'],
             test_size=context['rs_test_size'],
-            labels_special_case=context['percent_labels'] == -1)):
+            labels_special_case=context['percent_labels'] == -1
+        )):
         rs_context['rs_split'] = i_inner_split
 
         fit_kwargs = {
@@ -134,6 +136,7 @@ def task(context, **kwargs):
             'X2': X2_tr[tr_z],
             'z': z_tr[tr_z],
             'Xu': Xu_tr[tr_u],
+            'n_classes': n_classes
         }
         fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
         grid = estimator_tuple.grid_func(X_tr[tr_y],
@@ -161,6 +164,7 @@ def task(context, **kwargs):
         'X2': X2_tr,
         'z': z_tr,
         'Xu': Xu_tr,
+        'n_classes': n_classes
     }
     fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
     grid = estimator_tuple.grid_func(X_tr,
@@ -181,7 +185,7 @@ def task(context, **kwargs):
     estimator_best.set_params(**best_params)
     # estimator_best.verbose = True
     # print(context, 'fitting on full train set')
-    fit_kwargs = dict(X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr)
+    fit_kwargs = dict(X1=X1_tr, X2=X2_tr, z=z_tr, Xu=Xu_tr, n_classes=n_classes)
     fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
     if context['percent_labels'] == -1:
         res = np.zeros(len(np.unique(y)), dtype=int)
@@ -283,7 +287,6 @@ if __name__ == '__main__':
 
     cacher = CSVCacher(filename=args.file)
 
-
     # no labels config
 
     context = OrderedDict(
@@ -300,6 +303,21 @@ if __name__ == '__main__':
     percent_links_range = [0.1, 0.2, 0.3, 0.4, 0.5]
     percent_unlabeled_range = [0.1, 0.2, 0.3, 0.4, 0.5]
 
+    # no labels all unlabeled config v2
+
+    context = OrderedDict(
+        rs_test_size=args.rs_test_size,
+        rs_splits=args.rs_folds,
+        cv_test_size=args.cv_test_size,
+        cv_splits=args.cv_folds,
+        rs_iters=args.rs_iters,
+        cv_random_state=42,
+        scorer='adj_rand')
+
+    # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_labels_range = [0] * 6
+    percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_unlabeled_range = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
 
     # few labels config
 

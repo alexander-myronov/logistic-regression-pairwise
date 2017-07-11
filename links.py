@@ -21,9 +21,9 @@ class LinksClassifier(BaseEstimator):
                  beta=1,
                  kernel='linear',
                  gamma='auto',
-                 percent_pairs=0.5,
+                 percent_pairs=None,
                  verbose=False,
-                 sampling='random',
+                 sampling='predefined',
                  init='zeros',
                  delta=1,
                  solver='tnc'):
@@ -100,6 +100,8 @@ class LinksClassifier(BaseEstimator):
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         self.X = X
         self.n_classes = len(np.unique(y))
+        if 'n_classes' in kwargs:
+            self.n_classes = kwargs['n_classes']
         assert np.sum(y == -1) == 0
         self.y = np.copy(y)
 
@@ -119,7 +121,7 @@ class LinksClassifier(BaseEstimator):
 
         for _ in xrange(kwargs.pop('n_gradient_checks', 0)):
             v_test = np.random.normal(size=self.v.ravel().shape)
-            #v_test = np.zeros(shape=self.v.ravel().shape)
+            # v_test = np.zeros(shape=self.v.ravel().shape)
             # num_grad_lloss = scipy.optimize.approx_fprime(
             #     v_test,
             #     f_lloss,
@@ -481,7 +483,7 @@ class LinksClassifier(BaseEstimator):
                           probs_i[:, l].reshape(-1, 1) * prob_grad_j
                 link_loss_grad_by_class_sum2[:, l] = p2_grad
             grad = (z - link_loss_grad_by_class_sum1.sum(axis=1)).reshape(-1, 1) * \
-                   (link_loss_grad_by_class_sum2[:, 0] + link_loss_grad_by_class_sum2[: ,1])
+                   (link_loss_grad_by_class_sum2[:, 0] + link_loss_grad_by_class_sum2[:, 1])
             # link_loss_grad_by_class_sum2.sum(axis=1)
             links_loss_grad[k] = np.sum(grad, axis=0)
         return links_loss_grad.ravel()
