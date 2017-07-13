@@ -211,10 +211,11 @@ class LogisticRegressionPairwise(BaseEstimator):
     def fit(self, X, y, **kwargs):
 
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
-        self.y = np.copy(y)
-        # if 'n_classes' in kwargs:
-        #     self.n_classes = kwargs['n_classes']
+        if self.alpha == 0:
+            X = np.zeros(shape=(0, X.shape[1]))
+            y = np.zeros(shape=0)
 
+        self.y = np.copy(y)
         if len(self.y) > 0:
             self.y[self.y == 0] = -1
 
@@ -223,9 +224,9 @@ class LogisticRegressionPairwise(BaseEstimator):
         self.z[self.z == 0] = -1
         self.X = X
 
-        X_k = self.kernel_f(X, X)
-        X1_k = self.kernel_f(self.X1, self.X1)
-        X2_k = self.kernel_f(self.X2, self.X2)
+        # X_k = self.kernel_f(X, X)
+        # X1_k = self.kernel_f(self.X1, self.X1)
+        # X2_k = self.kernel_f(self.X2, self.X2)
 
         self.fullX = np.vstack([X, self.X1, self.X2])
         self.K = self.kernel_f(self.fullX, self.fullX)
@@ -234,19 +235,20 @@ class LogisticRegressionPairwise(BaseEstimator):
         stds = np.std(self.K, axis=0)
 
         self.wbeta = np.random.normal(loc=means, scale=stds,
-                                      size=X_k.shape[1])  # np.zeros(X_k.shape[1])
-        if self.kernel != 'linear':
-            self.wbeta1 = np.random.normal(loc=means, scale=stds, size=X1_k.shape[1])
-            self.wbeta2 = np.random.normal(loc=means, scale=stds, size=X2_k.shape[1])
-        else:
-            self.wbeta1 = np.zeros(0)
-            self.wbeta2 = np.zeros(0)
+                                      size=self.K.shape[1])  # np.zeros(X_k.shape[1])
+
+        # if self.kernel != 'linear':
+        #     self.wbeta1 = np.random.normal(loc=means, scale=stds, size=X1_k.shape[1])
+        #     self.wbeta2 = np.random.normal(loc=means, scale=stds, size=X2_k.shape[1])
+        # else:
+        #     self.wbeta1 = np.zeros(0)
+        #     self.wbeta2 = np.zeros(0)
 
         # EM
         prev_loss = 0
         loss = 0
         n_iter = self.max_iter
-        full_beta = np.concatenate([self.wbeta, self.wbeta1, self.wbeta2])
+        full_beta = self.wbeta  # np.concatenate([self.wbeta, self.wbeta1, self.wbeta2])
 
         estep_f = self.estep
         loss_f = self.loss_split_other
@@ -286,7 +288,7 @@ class LogisticRegressionPairwise(BaseEstimator):
         if n_iter == 0 and np.abs(prev_loss - loss) >= 1e-5:
             # warn
             pass
-        self.wbeta, self.wbeta1, self.wbeta2 = self.split_beta(full_beta)
+        self.wbeta = full_beta
         return self
 
     def estep(self, X1, X2, z, full_beta):
@@ -297,21 +299,12 @@ class LogisticRegressionPairwise(BaseEstimator):
                1 / (1 + np.exp(-z * self.predict_proba_(X2, full_beta)))
         return E_z1, E_z2
 
-    def estep_split(self, X1, X2, z, full_beta):
-        _, beta1, beta2 = self.split_beta(full_beta)
-        E_z1 = 1 / (1 + np.exp(self.predict_proba_(X1, beta1, X_prim=X1))) * \
-               1 / (1 + np.exp(z * self.predict_proba_(X2, beta2, X_prim=X2)))
-
-        E_z2 = 1 / (1 + np.exp(-self.predict_proba_(X1, beta1, X_prim=X1))) * \
-               1 / (1 + np.exp(-z * self.predict_proba_(X2, beta2, X_prim=X2)))
-        return E_z1, E_z2
-
     def predict(self, X):
         probs = self.predict_proba(X)
         return np.round(probs[:, 1], 0).astype(int)
 
     def predict_proba(self, X):
-        full_beta = np.concatenate([self.wbeta, self.wbeta1, self.wbeta2])
+        full_beta = self.wbeta
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
         probs = self.predict_proba_(X, full_beta)
         probs = self.sigmoid(probs)

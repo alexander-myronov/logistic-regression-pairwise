@@ -98,7 +98,11 @@ class LinksClassifier(BaseEstimator):
 
     def fit(self, X, y, **kwargs):
         X = np.hstack([np.ones(shape=(X.shape[0], 1)), X])
+        if self.alpha == 0:
+            X = np.zeros(shape=(0, X.shape[1]))
+            y = np.zeros(shape=0)
         self.X = X
+
         self.n_classes = len(np.unique(y))
         if 'n_classes' in kwargs:
             self.n_classes = kwargs['n_classes']

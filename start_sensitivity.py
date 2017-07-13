@@ -73,7 +73,8 @@ datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 # In[87]:
 
 def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random_state=42,
-                  labels_and_links_separation_degree=0, return_index=False):
+                  labels_and_links_separation_degree=0, strict_unlabeled_percent=False,
+                  return_index=False):
     """
     This function splits a dataset into 3 portions:
     1. labeled data
@@ -85,7 +86,11 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
     :param percent_links:
     :param percent_unlabeled:
     :param random_state:
-    :param labels_and_links_separation_degree: 0 - random, 1 - at least 1 point is unlabeled, 2 - both unlabeled
+    :param labels_and_links_separation_degree:
+        0 - random,
+        1 - at least 1 point is unlabeled,
+        2 - both unlabeled
+    :param strict_unlabeled_percent - if false, can take less unlabeld points then specified
     :param return_index
     :return: X(labeled), y(labels),
         X1(first point in link), X2(second point in link), z(must-link or cannot-link),
@@ -105,14 +110,12 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
 
         z = (y[choice1] == y[choice2]).astype(float)
 
-        links_index = choice1 | choice2
     else:
         choice1 = np.zeros(len(y), dtype=bool)
         choice2 = np.zeros(len(y), dtype=bool)
         z = np.array([])
-        links_index = choice1 | choice2
-    # print(links_index.sum())
 
+    links_index = choice1 | choice2
 
     if percent_labels < 1:
         if labels_and_links_separation_degree == 2:
@@ -132,19 +135,26 @@ def split_dataset(X, y, percent_labels, percent_links, percent_unlabeled, random
         # labels_choice = np.arange(0, len(X))
     labels_index = np.in1d(np.arange(len(y)), labels_choice)
 
-    unsup_index = ~(labels_index & links_index)
+    unsup_index = ~(labels_index | links_index)
     unsup_where = np.where(unsup_index)[0]
-    unsup_choice = np.random.choice(unsup_where, size=int(percent_unlabeled * len(y)),
-                                    replace=False)
+    number_unlabeled = int(percent_unlabeled * len(y))
+    if strict_unlabeled_percent:
+        if len(unsup_where) < number_unlabeled:
+            raise Exception('not enough unlabeled points and strict check is on')
+    else:
+        number_unlabeled = min(number_unlabeled, len(unsup_where))
+    unsup_choice = np.random.choice(unsup_where, size=number_unlabeled, replace=False)
+    unsup_index = np.in1d(np.arange(len(y)), unsup_choice)
 
     # print(labels_index.sum(), links_index.sum(), unsup_index.sum())
     if labels_and_links_separation_degree == 2:
         assert (labels_index | links_index | unsup_index).sum() == \
                len(y) * (percent_labels + percent_links + percent_unlabeled)
 
-    # assert labels_index.sum() == len(y) * percent_labels
-    # assert links_index.sum() == len(y) * percent_links #TODO
-    # assert unsup_index.sum() == len(y) * percent_unlabeled
+    assert labels_index.sum() == int(len(y) * percent_labels)
+    assert len(z) == int(len(y) * percent_links)
+    if strict_unlabeled_percent:
+        assert unsup_index.sum() == int(len(y) * percent_unlabeled)
 
     if return_index:
         return labels_index, choice1, choice2, z, unsup_choice
@@ -229,6 +239,15 @@ def split_dataset_stable(X, y, percent_labels, percent_links, percent_unlabeled,
             unsup))
 
     unsup = unsup[unsup_choice]
+    if labels_and_links_separation_degree == 2:
+        if np.max(np.bincount(np.concatenate([labels, links1, links2, unsup]))) > 1:
+            raise Exception(
+                'bad split: %f %f %f' % (percent_labels, percent_links, percent_unlabeled))
+    elif labels_and_links_separation_degree < 2:
+        if np.max(np.bincount(
+                np.concatenate([np.unique(np.concatenate([labels, links1, links2])), unsup]))) > 1:
+            raise Exception(
+                'bad split: %f %f %f' % (percent_labels, percent_links, percent_unlabeled))
     if return_index:
         return labels, links1, links2, z, unsup
     return X[labels], y[labels], X[links1], X[links2], z, X[unsup]

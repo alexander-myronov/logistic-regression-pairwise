@@ -9,11 +9,11 @@ from grid import *
 
 estimators = [
     estimator_tuple(
-        name='Links(linear)',
+        name='Links(rbf)',
         estimator=LinksClassifier(kernel='rbf', sampling='predefined', solver='tnc',
                                   init='normal_univariate'),
         kwargs_func=lambda kw: kw,
-        grid_func=partial(links_grid_linear_no_labels, method=4)),
+        grid_func=partial(links_grid_rbf_no_labels, method=4)),
     # estimator_tuple(
     #     name='Links(linear,joint loss)',
     #     estimator=LinksClassifier(kernel='linear', beta=None, sampling='predefined', solver='tnc'),
@@ -21,10 +21,10 @@ estimators = [
     #     grid_func=lambda *a, **kw: pop_kwargs(partial(links_grid_linear, method=4)(*a, **kw),
     #                                           to_pop=['beta'])),
     estimator_tuple(
-        name='NPKLR(linear)',
+        name='NPKLR(rbf)',
         estimator=LogisticRegressionPairwise(kernel='rbf', sampling='predefined'),
         kwargs_func=labels_links,
-        grid_func=partial(links_grid_linear_no_labels, method=4)),
+        grid_func=partial(links_grid_rbf_no_labels, method=4)),
     # estimator_tuple(
     #     name='SVM(linear)',
     #     estimator=SVC(kernel='linear', cache_size=1024),

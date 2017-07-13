@@ -79,7 +79,7 @@ def split_datasets(X, y, X1, X2, z, Xu, n_splits, test_size=0.2, labels_special_
 
 
 def task(context, **kwargs):
-    from start_sensitivity import split_dataset_stable
+    from start_sensitivity import split_dataset
     from new_experiment_runner.cacher import CSVCacher
     from links_vs_npklr_vs_svm import split_datasets, accuracy_scorer, adj_rand_scorer
     from sklearn.model_selection import ParameterSampler
@@ -94,13 +94,12 @@ def task(context, **kwargs):
     X_train, y_train = X[train], y[train]
     n_classes = len(np.unique(y))
 
-    X_tr, y_tr, X1_tr, X2_tr, z_tr, Xu_tr = split_dataset_stable(
+    X_tr, y_tr, X1_tr, X2_tr, z_tr, Xu_tr = split_dataset(
         X_train, y_train,
         percent_labels=context['percent_labels'],
         percent_links=context['percent_links'],
         percent_unlabeled=context['percent_unlabeled'],
-        labels_and_links_separation_degree=1,
-        random_state=42)
+        labels_and_links_separation_degree=1)
 
     # if len(cacher.get(context) > 1):
     #     continue
@@ -142,7 +141,7 @@ def task(context, **kwargs):
         grid = estimator_tuple.grid_func(X_tr[tr_y],
                                          y_tr[tr_y], fit_kwargs)
 
-        for params in ParameterSampler(grid, context['rs_iters'], random_state=42):
+        for params in ParameterSampler(grid, context['rs_iters']):
             rs_context.update(params)
 
             # print(gs_context)
@@ -174,7 +173,7 @@ def task(context, **kwargs):
     grouped = rs_df['score']. \
         groupby(by=map(lambda param_name: rs_df[param_name], param_names)).mean()
     best_params = grouped.argmax()
-    # print(best_params)
+    # print(grouped)
     cv_score = grouped.ix[best_params]
     grouped = None
 
@@ -203,6 +202,7 @@ def task(context, **kwargs):
     result = dict(best_params)
     result['cv_score'] = cv_score
     result['test_score'] = test_score
+    # print(estimator_tuple.name, cv_score, test_score)
     return result
 
 
@@ -315,9 +315,9 @@ if __name__ == '__main__':
         scorer='adj_rand')
 
     # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [0] * 6
+    percent_labels_range = [0.2] * 6
     percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_unlabeled_range = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+    percent_unlabeled_range = [0.4] * 6
 
     # few labels config
 
@@ -366,15 +366,20 @@ if __name__ == '__main__':
 
                 if isinstance(estimator_tuple.estimator, LinksClassifier):
 
-                    labels_and_links = itertools.izip(
-                        percent_labels_range,
-                        percent_links_range)
-                    percents = [(labels, links, unlabeled) for (labels, links), unlabeled in
-                                itertools.product(labels_and_links, percent_unlabeled_range)]
-                elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
+                    # labels_and_links = itertools.izip(
+                    #     percent_labels_range,
+                    #     percent_links_range)
+                    # percents = [(labels, links, unlabeled) for (labels, links), unlabeled in
+                    #             itertools.product(labels_and_links, percent_unlabeled_range)]
                     percents = itertools.izip_longest(
                         percent_labels_range,
                         percent_links_range,
+                        percent_unlabeled_range,
+                        fillvalue=0.0)
+                elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
+                    percents = itertools.izip_longest(
+                        percent_labels_range[1:],
+                        percent_links_range[1:],
                         [],
                         fillvalue=0.0)
                 elif isinstance(estimator_tuple.estimator, SVC):

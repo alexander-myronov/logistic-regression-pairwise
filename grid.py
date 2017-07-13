@@ -40,6 +40,12 @@ def links_grid_rbf(X, y, fit_kwargs, method=2):
     grid['gamma'] = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
     return grid
 
+def links_grid_rbf_no_labels(X, y, fit_kwargs, method=2):
+    from grid import links_grid_linear_no_labels
+    grid = links_grid_linear_no_labels(X, y, fit_kwargs, method=method)
+    grid['gamma'] = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2]
+    return grid
+
 
 def links_grid_linear(X, y, fit_kwargs, method=2):
     from grid import get_alpha_distribution, get_beta_distribution, \
