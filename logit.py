@@ -279,6 +279,9 @@ class LogisticRegressionPairwise(BaseEstimator):
                                           )
             full_beta = opt[0]
             loss = f(full_beta)
+            if not np.isfinite(loss):
+                #print('loss is not finite')
+                break
             if np.abs(prev_loss - loss) < 1e-5:
                 break
 
