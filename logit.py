@@ -273,12 +273,14 @@ class LogisticRegressionPairwise(BaseEstimator):
             opt = scipy.optimize.fmin_tnc(f,
                                           full_beta,
                                           fprime=fprime,
-                                          maxfun=500,
+                                          maxfun=25,
                                           ftol=1e-4,
                                           disp=0
                                           )
             full_beta = opt[0]
             loss = f(full_beta)
+            if not np.isfinite(loss):
+                break
             if np.abs(prev_loss - loss) < 1e-5:
                 break
 
@@ -289,6 +291,8 @@ class LogisticRegressionPairwise(BaseEstimator):
             # warn
             pass
         self.wbeta = full_beta
+        self.loss = f(full_beta)
+        # loss_grad = fprime(full_beta)
         return self
 
     def estep(self, X1, X2, z, full_beta):
@@ -317,8 +321,6 @@ class LogisticRegressionPairwise(BaseEstimator):
     def predict_proba_(self, X, full_beta, X_prim=None):
         if X_prim is None:
             X_prim = self.fullX
-        # full_beta = np.concatenate([self.beta, self.beta1, self.beta2])
-        # return LogisticRegression.sigmoid(np.dot(X, beta))
         return np.dot(self.kernel_f(X, X_prim), full_beta)
 
     def sample_pairs_max_kdist(self, X, y):
@@ -391,12 +393,14 @@ class LogisticRegressionPairwise(BaseEstimator):
         Kl1 = self.K[len(X):len(X) + len(X1), :]
         Kl2 = self.K[len(X) + len(X1):, :]
 
-        lloss = -np.log(1 + np.exp(-y * np.dot(Kp, full_beta)))
+        Vp = np.dot(Kp, full_beta)
+        lloss = -np.log(1 + np.exp(-y * Vp))
         lloss = lloss.sum()
-        ploss = E_z1 * -1 * np.log((1 + np.exp(np.dot(Kl1, full_beta))) * \
-                                   (1 + np.exp(z * np.dot(Kl2, full_beta)))) + \
-                E_z2 * -1 * np.log((1 + np.exp(-np.dot(Kl1, full_beta))) * \
-                                   (1 + np.exp(-z * np.dot(Kl2, full_beta))))
+
+        V1 = np.dot(Kl1, full_beta)
+        V2 = np.dot(Kl2, full_beta)
+        ploss = E_z1 * -1 * np.log((1 + np.exp(V1)) * (1 + np.exp(z * V2))) + \
+                E_z2 * -1 * np.log((1 + np.exp(-V1)) * (1 + np.exp(-z * V2)))
 
         ploss = ploss.sum()
 
@@ -415,6 +419,7 @@ class LogisticRegressionPairwise(BaseEstimator):
         Kl2 = self.K[len(X) + len(X1):, :]
 
         Vp = np.dot(Kp, full_beta)
+        # Vp = np.power(Vp, 2) * np.exp(-Vp) * Vp
         lloss_grad = (np.exp(-y * Vp) * y) / (1 + np.exp(-y * Vp))
         lloss_grad = Kp * lloss_grad.reshape(-1, 1)
         lloss_grad = lloss_grad.sum(axis=0)
@@ -541,14 +546,18 @@ def plot_moons(estimator):
     ax.set_yticks(())
 
     labels, links1, links2, unsup = split_dataset(X_train, y_train, percent_labels=0.1,
-                                                  percent_links=0.1,
+                                                  percent_links=0.3,
                                                   percent_unlabeled=0.0)
     z = (y_train[links1] == y_train[links2]).astype(int)
 
     if isinstance(estimator, GridSearchCV) and isinstance(estimator.estimator,
                                                           LogisticRegressionPairwise):
         estimator.fit_params = {'X1': X_train[links1], 'X2': X_train[links2], 'z': z}
-    estimator.fit(X_train, y_train)
+        estimator.fit(X_train, y_train)
+    elif isinstance(estimator, LogisticRegressionPairwise):
+        estimator.fit(X_train, y_train, X1=X_train[links1], X2=X_train[links2], z=z)
+    else:
+        estimator.fit(X_train, y_train)
 
     if isinstance(estimator, GridSearchCV):
         print(estimator.best_params_, estimator.best_score_)
@@ -612,17 +621,12 @@ if __name__ == '__main__':
 
 
     plot_moons(
-        GridSearchCV(
-            LogisticRegressionPairwise(kernel='rbf', gamma='auto', sampling='predefined',
-                                       verbose=False),
-            {
-                'alpha': [100],
-                'beta': [100],
-                'gamma': [3],
-            },
-            cv=5,
-            verbose=2,
-            scoring=accuracy_scorer)
+        LogisticRegressionPairwise(kernel='rbf',
+                                   gamma=5,
+                                   sampling='predefined',
+                                   verbose=True,
+                                   alpha=100,
+                                   beta=1000)
     )
     plt.show()
 
