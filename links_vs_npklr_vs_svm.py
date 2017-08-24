@@ -153,7 +153,8 @@ def task(context, **kwargs):
                            **fit_kwargs)
             score = scorer(estimator0, X_tr[te_y], y_tr[te_y])
 
-            rs_cacher.set(rs_context, {'score': score})
+            final_loss = estimator0.loss if hasattr(estimator0, 'loss') else np.nan
+            rs_cacher.set(rs_context, {'score': score, 'loss': final_loss})
 
     rs_df = rs_cacher.dataframe
     # print(rs_df.shape)
@@ -289,35 +290,35 @@ if __name__ == '__main__':
 
     # no labels config
 
-    context = OrderedDict(
-        rs_test_size=args.rs_test_size,
-        rs_splits=args.rs_folds,
-        cv_test_size=args.cv_test_size,
-        cv_splits=args.cv_folds,
-        rs_iters=args.rs_iters,
-        cv_random_state=42,
-        scorer='adj_rand')
+    # context = OrderedDict(
+    #     rs_test_size=args.rs_test_size,
+    #     rs_splits=args.rs_folds,
+    #     cv_test_size=args.cv_test_size,
+    #     cv_splits=args.cv_folds,
+    #     rs_iters=args.rs_iters,
+    #     cv_random_state=42,
+    #     scorer='adj_rand')
 
     # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [-1] * 5
-    percent_links_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_unlabeled_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    # percent_labels_range = [-1] * 5
+    # percent_links_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    # percent_unlabeled_range = [0.1, 0.2, 0.3, 0.4, 0.5]
 
     # no labels all unlabeled config v2
 
-    context = OrderedDict(
-        rs_test_size=args.rs_test_size,
-        rs_splits=args.rs_folds,
-        cv_test_size=args.cv_test_size,
-        cv_splits=args.cv_folds,
-        rs_iters=args.rs_iters,
-        cv_random_state=42,
-        scorer='adj_rand')
-
-    # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [0.2] * 6
-    percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_unlabeled_range = [0.4] * 6
+    # context = OrderedDict(
+    #     rs_test_size=args.rs_test_size,
+    #     rs_splits=args.rs_folds,
+    #     cv_test_size=args.cv_test_size,
+    #     cv_splits=args.cv_folds,
+    #     rs_iters=args.rs_iters,
+    #     cv_random_state=42,
+    #     scorer='adj_rand')
+    #
+    # # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    # percent_labels_range = [0.2] * 6
+    # percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    # percent_unlabeled_range = [0.4] * 6
 
     # few labels config
 
@@ -336,19 +337,19 @@ if __name__ == '__main__':
 
     # svm adj rand config
 
-    # context = OrderedDict(
-    #     rs_test_size=args.rs_test_size,
-    #     rs_splits=args.rs_folds,
-    #     cv_test_size=args.cv_test_size,
-    #     cv_splits=args.cv_folds,
-    #     rs_iters=args.rs_iters,
-    #     cv_random_state=42,
-    #     scorer='adj_rand')
-    #
-    # # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    # percent_labels_range = [0.1, 0.2]
-    # percent_links_range = []
-    # percent_unlabeled_range = []
+    context = OrderedDict(
+        rs_test_size=args.rs_test_size,
+        rs_splits=args.rs_folds,
+        cv_test_size=args.cv_test_size,
+        cv_splits=args.cv_folds,
+        rs_iters=args.rs_iters,
+        cv_random_state=42,
+        scorer='adj_rand')
+
+    # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_labels_range = [0.1, 0.2]
+    percent_links_range = []
+    percent_unlabeled_range = []
 
     assert args.estimators_file is not None
     estimators_module = imp.load_source('estimators', args.estimators_file)
