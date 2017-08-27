@@ -6,6 +6,7 @@ import re
 from scipy.sparse import issparse
 from sklearn.svm import SVC
 
+from gmm_with_links import GmmWithLinks
 from new_experiment_runner.cacher import CSVCacher
 from new_experiment_runner.runner import Runner
 
@@ -168,7 +169,8 @@ def task(context, **kwargs):
     }
     fit_kwargs = estimator_tuple.kwargs_func(fit_kwargs)
     grid = estimator_tuple.grid_func(X_tr,
-                                     y_tr, fit_kwargs)
+                                     y_tr,
+                                     fit_kwargs)
 
     param_names = grid.keys()
     grouped = rs_df['score']. \
@@ -217,10 +219,27 @@ def validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=0):
         return False
 
 
+def load_ds(fname):
+    n_features = None
+    with open(fname, 'r') as svmlight_file:
+        next(svmlight_file)
+        next(svmlight_file)
+        next(svmlight_file)
+        n_features_line = next(svmlight_file)
+
+        match = re.match('#\s([0-9]+)', n_features_line)
+        if match:
+            n_features = int(match.groups()[0])
+    X, y = load_svmlight_file(fname, n_features=n_features)
+    if issparse(X):
+        X = X.toarray()
+    y[y == -1] = 0
+    return X, y
+
+
 if __name__ == '__main__':
 
     mp.freeze_support()
-
 
     # datafiles_toy = [
     #     r'data/diabetes_scale.libsvm',
@@ -234,22 +253,7 @@ if __name__ == '__main__':
     # ]
 
 
-    def load_ds(fname):
-        n_features = None
-        with open(fname, 'r') as svmlight_file:
-            next(svmlight_file)
-            next(svmlight_file)
-            next(svmlight_file)
-            n_features_line = next(svmlight_file)
 
-            match = re.match('#\s([0-9]+)', n_features_line)
-            if match:
-                n_features = int(match.groups()[0])
-        X, y = load_svmlight_file(fname, n_features=n_features)
-        if issparse(X):
-            X = X.toarray()
-        y[y == -1] = 0
-        return X, y
 
 
     parser = argparse.ArgumentParser(description='Model evaluation script')
@@ -306,19 +310,19 @@ if __name__ == '__main__':
 
     # no labels all unlabeled config v2
 
-    # context = OrderedDict(
-    #     rs_test_size=args.rs_test_size,
-    #     rs_splits=args.rs_folds,
-    #     cv_test_size=args.cv_test_size,
-    #     cv_splits=args.cv_folds,
-    #     rs_iters=args.rs_iters,
-    #     cv_random_state=42,
-    #     scorer='adj_rand')
-    #
-    # # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    # percent_labels_range = [0.2] * 6
-    # percent_links_range = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-    # percent_unlabeled_range = [0.4] * 6
+    context = OrderedDict(
+        rs_test_size=args.rs_test_size,
+        rs_splits=args.rs_folds,
+        cv_test_size=args.cv_test_size,
+        cv_splits=args.cv_folds,
+        rs_iters=args.rs_iters,
+        cv_random_state=42,
+        scorer='adj_rand')
+
+    # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_labels_range = [0.2] * 6
+    percent_links_range = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+    percent_unlabeled_range = [0.4] * 6
 
     # few labels config
 
@@ -337,19 +341,19 @@ if __name__ == '__main__':
 
     # svm adj rand config
 
-    context = OrderedDict(
-        rs_test_size=args.rs_test_size,
-        rs_splits=args.rs_folds,
-        cv_test_size=args.cv_test_size,
-        cv_splits=args.cv_folds,
-        rs_iters=args.rs_iters,
-        cv_random_state=42,
-        scorer='adj_rand')
-
-    # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
-    percent_labels_range = [0.1, 0.2]
-    percent_links_range = []
-    percent_unlabeled_range = []
+    # context = OrderedDict(
+    #     rs_test_size=args.rs_test_size,
+    #     rs_splits=args.rs_folds,
+    #     cv_test_size=args.cv_test_size,
+    #     cv_splits=args.cv_folds,
+    #     rs_iters=args.rs_iters,
+    #     cv_random_state=42,
+    #     scorer='adj_rand')
+    #
+    # # percent_labels_range = [0.1, 0.2, 0.3, 0.4, 0.5]
+    # percent_labels_range = [0.1, 0.2]
+    # percent_links_range = []
+    # percent_unlabeled_range = []
 
     assert args.estimators_file is not None
     estimators_module = imp.load_source('estimators', args.estimators_file)
@@ -387,6 +391,12 @@ if __name__ == '__main__':
                     percents = itertools.izip_longest(np.unique(percent_labels_range),
                                                       [],
                                                       [], fillvalue=0.0)
+                elif isinstance(estimator_tuple.estimator, GmmWithLinks):
+                    percents = itertools.izip_longest(
+                        percent_labels_range,
+                        percent_links_range,
+                        percent_unlabeled_range,
+                        fillvalue=0.0)
                 else:
                     raise Exception(
                         "I don't know what to do with %s" % type(estimator_tuple.estimator))
