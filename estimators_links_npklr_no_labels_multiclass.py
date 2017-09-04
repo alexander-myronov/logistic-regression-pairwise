@@ -22,5 +22,18 @@ estimators = [
                                                                 sampling='predefined')),
         kwargs_func=labels_links,
         grid_func=prepend(partial(links_grid_linear_no_labels, method=4), 'estimator__')),
+    estimator_tuple(
+        name='Links(rbf)',
+        estimator=LinksClassifier(kernel='rbf', sampling='predefined', solver='tnc',
+                                  init='normal_univariate'),
+        kwargs_func=lambda kw: kw,
+        grid_func=partial(links_grid_rbf_no_labels, method=4)),
+
+    estimator_tuple(
+        name='NPKLR(rbf)',
+        estimator=OneVsOneClassifier(LogisticRegressionPairwise(kernel='rbf',
+                                                                sampling='predefined')),
+        kwargs_func=labels_links,
+        grid_func=prepend(partial(links_grid_rbf_no_labels, method=4), 'estimator__')),
 
 ]
