@@ -205,7 +205,14 @@ class LogisticRegressionPairwise(BaseEstimator):
                 X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
             if X2.shape[1] == X.shape[1] - 1:
                 X2 = np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
-
+        elif isinstance(self.sampling, dict):
+            X1 = self.sampling['X1']
+            X2 = self.sampling['X2']
+            z = self.sampling['z']
+            if X1.shape[1] == X.shape[1] - 1:
+                X1 = np.hstack([np.ones(shape=(X1.shape[0], 1)), X1])
+            if X2.shape[1] == X.shape[1] - 1:
+                X2 = np.hstack([np.ones(shape=(X2.shape[0], 1)), X2])
         return X1, X2, z
 
     def fit(self, X, y, **kwargs):

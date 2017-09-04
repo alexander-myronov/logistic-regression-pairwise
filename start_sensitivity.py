@@ -32,12 +32,10 @@ from tqdm import tqdm as tqdm
 
 from new_experiment_runner.cacher import CSVCacher
 
+
 # In[60]:
 
-datafiles_toy = [
-    r'data/diabetes_scale.libsvm',
-    # r'data/breast-cancer_scale.libsvm',
-]
+
 
 
 # In[61]:
@@ -56,14 +54,7 @@ def loader(name):
 
 # In[79]:
 
-datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
-                         load_svmlight_file(f))
-                        for f in datafiles_toy])
 
-# In[80]:
-
-datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
-datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
 
 # In[82]:
@@ -324,6 +315,18 @@ def call_wrapper(dataset, context):
 
 
 if __name__ == '__main__':
+    datafiles_toy = [
+        r'data/diabetes_scale.libsvm',
+        # r'data/breast-cancer_scale.libsvm',
+    ]
+    datasets = OrderedDict([(os.path.split(f)[-1].replace('.libsvm', ''),
+                             load_svmlight_file(f))
+                            for f in datafiles_toy])
+
+    # In[80]:
+
+    datasets['circles'] = make_circles(n_samples=400, noise=0.1, factor=0.51)
+    datasets['moons'] = make_moons(n_samples=400, noise=0.1)
 
     parser = argparse.ArgumentParser(description='Model evaluation script')
 

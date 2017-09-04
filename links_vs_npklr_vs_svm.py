@@ -5,6 +5,7 @@ import re
 
 from scipy.sparse import issparse
 from sklearn.svm import SVC
+from sklearn.multiclass import OneVsOneClassifier
 
 from gmm_with_links import GmmWithLinks
 from new_experiment_runner.cacher import CSVCacher
@@ -85,7 +86,10 @@ def task(context, **kwargs):
     from links_vs_npklr_vs_svm import split_datasets, accuracy_scorer, adj_rand_scorer
     from sklearn.model_selection import ParameterSampler
     from sklearn.base import clone
+    from sklearn.multiclass import OneVsOneClassifier
+    from logit import LogisticRegressionPairwise
     import numpy as np
+    from grid import prepend
     estimator_tuple = kwargs.pop('estimator')
 
     X = kwargs.pop('X')
@@ -149,9 +153,17 @@ def task(context, **kwargs):
 
             estimator0 = clone(estimator_tuple.estimator)
             estimator0.set_params(**params)
-            estimator0.fit(X_tr[tr_y],
-                           y_tr[tr_y],
-                           **fit_kwargs)
+
+            # dirty hack for OneVsOneClassifier
+            if isinstance(estimator0, OneVsOneClassifier) and \
+                    isinstance(estimator0.estimator, LogisticRegressionPairwise):
+                estimator0.estimator.sampling = fit_kwargs
+                estimator0.fit(X_tr[tr_y],
+                               y_tr[tr_y])
+            else:
+                estimator0.fit(X_tr[tr_y],
+                               y_tr[tr_y],
+                               **fit_kwargs)
             score = scorer(estimator0, X_tr[te_y], y_tr[te_y])
 
             final_loss = estimator0.loss if hasattr(estimator0, 'loss') else np.nan
@@ -198,7 +210,14 @@ def task(context, **kwargs):
         y_tr = y_tr[res]
         X_tr = X_tr[res]
         # print(y_tr)
-    estimator_best.fit(X_tr, y_tr, **fit_kwargs)
+        # dirty hack for OneVsOneClassifier
+    if isinstance(estimator_best, OneVsOneClassifier) and \
+            isinstance(estimator_best.estimator, LogisticRegressionPairwise):
+        estimator_best.estimator.sampling = fit_kwargs
+        estimator_best.fit(X_tr,
+                       y_tr)
+    else:
+        estimator_best.fit(X_tr, y_tr, **fit_kwargs)
 
     test_score = scorer(estimator_best, X[test], y[test])
 
@@ -222,6 +241,34 @@ def validate_percents(X, y, p_labels, p_links, p_unlabeled, disjoint=0):
 def load_ds(fname):
     n_features = None
     with open(fname, 'r') as svmlight_file:
+
+        # lines = svmlight_file.readlines()
+
+        # newlines = []
+        # for l in lines:
+        #     l = l.replace(': ', ':')
+        #     newlines.append(l)
+        #
+        #
+        # for i_l, l in enumerate(lines):
+        #     kvs = re.findall('\d+\:\s*\d*\.\d+', l)
+        #     features = set()
+        #     for i_kv, kv in enumerate(kvs):
+        #         s = re.split('\:\s*', kv)
+        #         feature_ind = int(s[0])
+        #         if feature_ind in features:
+        #             print(i_l, feature_ind, ' duplicate')
+        #             exit()
+        #         else:
+        #             features.add(feature_ind)
+        #         try:
+        #             if len(s[1]) == 1:
+        #                 raise Exception()
+        #             float(s[1])
+        #         except:
+        #             print(i_l, i_kv, s)
+        #             exit()
+
         next(svmlight_file)
         next(svmlight_file)
         next(svmlight_file)
@@ -368,8 +415,10 @@ if __name__ == '__main__':
 
             for estimator_tuple in estimators:
                 context['estimator'] = estimator_tuple.name
-
-                if isinstance(estimator_tuple.estimator, LinksClassifier):
+                estimator_instance = estimator_tuple.estimator
+                while hasattr(estimator_instance, 'estimator'):
+                    estimator_instance = estimator_instance.estimator
+                if isinstance(estimator_instance, LinksClassifier):
 
                     # labels_and_links = itertools.izip(
                     #     percent_labels_range,
@@ -381,17 +430,17 @@ if __name__ == '__main__':
                         percent_links_range,
                         percent_unlabeled_range,
                         fillvalue=0.0)
-                elif isinstance(estimator_tuple.estimator, LogisticRegressionPairwise):
+                elif isinstance(estimator_instance, LogisticRegressionPairwise):
                     percents = itertools.izip_longest(
                         percent_labels_range[1:],
                         percent_links_range[1:],
                         [],
                         fillvalue=0.0)
-                elif isinstance(estimator_tuple.estimator, SVC):
+                elif isinstance(estimator_instance, SVC):
                     percents = itertools.izip_longest(np.unique(percent_labels_range),
                                                       [],
                                                       [], fillvalue=0.0)
-                elif isinstance(estimator_tuple.estimator, GmmWithLinks):
+                elif isinstance(estimator_instance, GmmWithLinks):
                     percents = itertools.izip_longest(
                         percent_labels_range,
                         percent_links_range,

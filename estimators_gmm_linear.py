@@ -11,7 +11,7 @@ from grid import *
 estimators = [
     estimator_tuple(
         name='GMM(linear)',
-        estimator=GmmWithLinks(delta=1e-10),
+        estimator=GmmWithLinks(delta=1e-10, verbose=False),
         kwargs_func=lambda kw: kw,
         grid_func=partial(gmm_grid_linear, method=4)),
 ]

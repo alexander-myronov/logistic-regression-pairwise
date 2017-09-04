@@ -116,3 +116,8 @@ def pop_kwargs(kwargs, to_pop):
         if kw in kwargs:
             kwargs.pop(kw)
     return kwargs
+
+
+def prepend(grid_function, prefix):
+    return lambda *args, **kwargs: {prefix + key: value
+                                    for key, value in (grid_function(*args, **kwargs)).iteritems()}
